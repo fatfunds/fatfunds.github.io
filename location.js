@@ -1,5 +1,5 @@
 // =========================
-// FILE: locations.js
+// FILE: location.js
 // (port of Locations.py)
 // =========================
 

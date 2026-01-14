@@ -1,5 +1,5 @@
 // =========================
-// FILE: combat.js
+// FILE: Combat.js
 // (port of Combat.py)
 // =========================
 
