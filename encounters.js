@@ -3,7 +3,7 @@
 // (port of Encounter.py)
 // =========================
 
-import { weightedPick } from "./locations.js";
+import { weightedPick } from "./location.js";
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;

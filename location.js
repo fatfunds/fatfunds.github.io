@@ -1,6 +1,6 @@
 // =========================
 // FILE: location.js
-// (port of Locations.py)
+// (port of Location.py)
 // =========================
 
 function randInt(min, max) {
