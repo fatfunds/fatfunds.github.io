@@ -5,7 +5,7 @@
 // =========================
 
 import { makeCharacter, applyStatChanges } from "./Character.js";
-import { listAreas, getArea } from "./locations.js";
+import { listAreas, getArea } from "./location.js";
 import { generateEncounter, generateChoices } from "./encounters.js";
 import { generateEnemy } from "./enemy.js";
 import { runCombat } from "./Combat.js";
