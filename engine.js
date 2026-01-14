@@ -4,11 +4,11 @@
 // UI-agnostic: no DOM, no console printing
 // =========================
 
-import { makeCharacter, applyStatChanges } from "./character.js";
+import { makeCharacter, applyStatChanges } from "./Character.js";
 import { listAreas, getArea } from "./locations.js";
 import { generateEncounter, generateChoices } from "./encounters.js";
 import { generateEnemy } from "./enemy.js";
-import { runCombat } from "./combat.js";
+import { runCombat } from "./Combat.js";
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
