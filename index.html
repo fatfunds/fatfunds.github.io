@@ -148,7 +148,7 @@
     </div>
   </section>
 
-  <!-- ADVENTURE HUD -->
+<!-- ADVENTURE HUD -->
 <section id="adventure" class="section hud-bg">
   <div class="wrap hud">
     <header class="hud-header">
@@ -166,10 +166,49 @@
     <div class="hud-grid">
       <!-- LEFT: Story / Input -->
       <div class="hud-main">
+
+        <!-- BATTLE PANEL (INLINE) -->
+        <div class="battle-panel hidden" id="battle-panel" aria-hidden="true">
+          <div class="battle-frame">
+            <div class="battle-bg"></div>
+
+            <!-- Enemy side -->
+            <div class="battle-enemy">
+              <div class="nameplate">
+                <div class="name" id="enemy-name">Enemy</div>
+                <div class="hpbar"><div class="hpfill" id="enemy-hp"></div></div>
+              </div>
+              <div class="sprite sheet sprite-enemy" id="enemy-sprite"></div>
+            </div>
+
+            <!-- Player side -->
+            <div class="battle-player">
+              <div class="nameplate">
+                <div class="name" id="player-name">Player</div>
+                <div class="hpbar"><div class="hpfill" id="player-hp"></div></div>
+              </div>
+              <div class="sprite sheet sprite-player" id="player-sprite"></div>
+            </div>
+
+            <!-- Bottom battle text -->
+            <div class="battle-text" id="battle-text">A wild enemy appears!</div>
+          </div>
+
+          <!-- Battle command row -->
+          <div class="battle-cmd">
+            <button class="mini-btn" id="cmd-attack" type="button">Attack</button>
+            <button class="mini-btn" id="cmd-skill" type="button">Skill</button>
+            <button class="mini-btn" id="cmd-item" type="button">Item</button>
+            <button class="mini-btn ghost" id="cmd-run" type="button">Run</button>
+          </div>
+        </div>
+
+        <!-- Log -->
         <div class="hud-log" id="hud-log" aria-live="polite">
           <div class="log-line dim">Type “start” to generate a character and begin.</div>
         </div>
 
+        <!-- Input row -->
         <div class="hud-inputRow">
           <label class="sr-only" for="hud-input">Command input</label>
           <input
@@ -182,7 +221,7 @@
           <button class="hud-send" id="hud-send" type="button">Send</button>
         </div>
 
-        <!-- Optional: choice buttons (great for mobile) -->
+        <!-- Choice buttons -->
         <div class="hud-choices" id="hud-choices" hidden>
           <button class="choice-btn" id="choice-1" type="button">Choice 1</button>
           <button class="choice-btn" id="choice-2" type="button">Choice 2</button>
@@ -227,6 +266,9 @@
     </div>
   </div>
 </section>
+
+<script type="module" src="adventure-ui.js"></script>
+
 
 <script type="module" src="adventure-ui.js"></script>
 

@@ -438,6 +438,192 @@ section p {
   border:1px solid rgba(255,255,255,0.18);
 }
 
+.battle.hidden { display: none; }
+
+.battle{
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0,0,0,.55);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 18px;
+}
+
+.battle-frame{
+  width: min(980px, 96vw);
+  aspect-ratio: 16 / 9;
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,.55);
+  border: 1px solid rgba(255,255,255,.12);
+  animation: battleIn .18s ease-out;
+}
+
+@keyframes battleIn{
+  from{ transform: scale(.97); opacity: 0; }
+  to{ transform: scale(1); opacity: 1; }
+}
+
+.battle-bg{
+  position:absolute;
+  inset:0;
+  background:
+    radial-gradient(1200px 600px at 50% 20%, rgba(255,255,255,.12), transparent 55%),
+    linear-gradient(180deg, rgba(10,10,12,.2), rgba(10,10,12,.65));
+}
+
+.battle-bg::after{
+  content:"";
+  position:absolute;
+  left:-10%;
+  right:-10%;
+  bottom:-20%;
+  height: 60%;
+  background:
+    radial-gradient(closest-side at 50% 35%, rgba(255,255,255,.10), transparent 70%),
+    radial-gradient(closest-side at 30% 55%, rgba(255,255,255,.08), transparent 70%),
+    radial-gradient(closest-side at 70% 55%, rgba(255,255,255,.08), transparent 70%),
+    linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.35));
+  transform: skewY(-2deg);
+}
+
+/* Layout */
+.battle-enemy{
+  position:absolute;
+  top: 12%;
+  right: 9%;
+  width: 42%;
+  height: 48%;
+}
+.battle-player{
+  position:absolute;
+  bottom: 18%;
+  left: 7%;
+  width: 48%;
+  height: 52%;
+}
+
+/* Ground shadows */
+.battle-player::after, .battle-enemy::after{
+  content:"";
+  position:absolute;
+  bottom: 18px;
+  width: 220px;
+  height: 46px;
+  border-radius: 999px;
+  background: rgba(0,0,0,.35);
+  filter: blur(2px);
+}
+.battle-player::after{ left: 20px; }
+.battle-enemy::after{ right: 20px; }
+
+/* Nameplates */
+.nameplate{
+  position:absolute;
+  top: 0;
+  left: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15,15,18,.55);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,.12);
+  width: min(280px, 70%);
+}
+.nameplate .name{
+  font-weight: 700;
+  letter-spacing: .2px;
+  margin-bottom: 8px;
+}
+.hpbar{
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.12);
+  overflow:hidden;
+}
+.hpfill{
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, rgba(62,255,150,.95), rgba(210,255,120,.95));
+  transform-origin: left center;
+  transition: width .2s ease;
+}
+
+/* Text box */
+.battle-text{
+  position:absolute;
+  left: 4%;
+  right: 4%;
+  bottom: 4%;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: rgba(12,12,14,.78);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,.14);
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+/* =========================================================
+   SPRITE SHEET ANIMATION SYSTEM
+   ========================================================= */
+
+.sprite{
+  position:absolute;
+  bottom: 0;
+  width: 320px;
+  height: 320px;
+  image-rendering: pixelated;
+  transform: translateZ(0);
+  filter: drop-shadow(0 18px 18px rgba(0,0,0,.45));
+}
+
+/* Enemy faces LEFT (toward player) */
+.sprite-enemy{
+  right: 0;
+  transform: scaleX(-1);
+}
+
+/* Player faces RIGHT */
+.sprite-player{
+  left: 0;
+}
+
+/*
+  Sprite sheet animation:
+  - set on element:
+    --w: frame width
+    --h: frame height
+    --frames: number of frames
+    --speed: duration (e.g. .8s)
+*/
+.sprite.sheet{
+  width: var(--w);
+  height: var(--h);
+  background-repeat: no-repeat;
+  background-size: calc(var(--w) * var(--frames)) var(--h);
+  animation: sheetAnim steps(var(--frames)) var(--speed) infinite;
+}
+
+@keyframes sheetAnim{
+  from { background-position: 0 0; }
+  to   { background-position: calc(var(--w) * var(--frames) * -1) 0; }
+}
+
+/* Small hit shake */
+.sprite.shake{
+  animation: hitShake .18s linear 1;
+}
+@keyframes hitShake{
+  0%{ transform: translateX(0) }
+  25%{ transform: translateX(-6px) }
+  50%{ transform: translateX(6px) }
+  75%{ transform: translateX(-3px) }
+  100%{ transform: translateX(0) }
+}
+
 /* Screen-reader only label */
 .sr-only{
   position:absolute;
