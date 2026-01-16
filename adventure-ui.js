@@ -4,7 +4,7 @@
 // =========================
 
 import { AdventureEngine } from "./engine.js";
-import { CombatController } from "./combat.js";
+import { CombatController } from "./Combat.js";
 
 const game = new AdventureEngine();
 let combat = null; // CombatController when in battle
