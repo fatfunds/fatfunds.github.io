@@ -1,110 +1,311 @@
 // =========================
-// FILE: Combat.js
-// (port of Combat.py)
+// FILE: combat-controller.js
+// Step-based "FF-lite" turn combat (ENGINE ONLY)
+// No DOM / no UI here.
 // =========================
 
 function randInt(min, max) {
-  // inclusive
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-export function rollD20() {
+function d20() {
   return randInt(1, 20);
 }
 
-export function rollDamage(dmgRange) {
-  const [lo, hi] = dmgRange;
-  return randInt(lo, hi);
+function rollDamage([min, max]) {
+  return randInt(min, max);
 }
 
-/**
- * Returns: { hit, d20, total, dmg, crit, fumble }
- * Mutates defender.HP when hit/crit.
- */
-export function attack(attacker, defender) {
-  const d20 = rollD20();
-  const total = d20 + (attacker.to_hit ?? 0);
+export class CombatController {
+  constructor(playerRef, enemy) {
+    // We mutate playerRef HP directly (so engine/player stays in sync)
+    this.player = playerRef;
+    this.enemy = enemy;
 
-  // Nat 1: automatic miss
-  if (d20 === 1) {
-    return { hit: false, d20, total, dmg: 0, crit: false, fumble: true };
+    this.turn = "player"; // "player" | "enemy"
+    this.ended = false;
+    this.winner = null; // "player" | "enemy" | "fled"
+
+    // small resources
+    this.player.status = this.player.status ?? {};
+    this.player.MP = this.player.MP ?? 3;
+    this.player.inventory = this.player.inventory ?? ["potion"];
+
+    this.enemy.status = this.enemy.status ?? {};
+
+    this.log = []; // events since last action
   }
 
-  // Nat 20: crit = roll damage twice
-  if (d20 === 20) {
-    const dmg =
-      rollDamage(attacker.damage ?? [1, 4]) +
-      rollDamage(attacker.damage ?? [1, 4]);
-    defender.HP -= dmg;
-    return { hit: true, d20, total, dmg, crit: true, fumble: false };
+  getPublicState() {
+    return {
+      active: !this.ended,
+      turn: this.turn,
+      player: {
+        name: this.player.name,
+        HP: this.player.HP,
+        AC: this.player.AC,
+        to_hit: this.player.to_hit,
+        damage: this.player.damage,
+        STR: this.player.STR,
+        INT: this.player.INT,
+        CHA: this.player.CHA,
+        MP: this.player.MP ?? 0,
+        status: { ...(this.player.status ?? {}) },
+        inventory: [...(this.player.inventory ?? [])],
+      },
+      enemy: {
+        name: this.enemy.name,
+        HP: this.enemy.HP,
+        AC: this.enemy.AC,
+        to_hit: this.enemy.to_hit,
+        damage: this.enemy.damage,
+        status: { ...(this.enemy.status ?? {}) },
+      },
+      actions: this.turn === "player"
+        ? ["attack", "defend", "spell", "item", "flee"]
+        : [],
+    };
   }
 
-  const hit = total >= (defender.AC ?? 10);
-  if (hit) {
-    const dmg = rollDamage(attacker.damage ?? [1, 4]);
-    defender.HP -= dmg;
-    return { hit: true, d20, total, dmg, crit: false, fumble: false };
+  // --- main entry ---
+  act(actionKey, arg = "") {
+    this.log = [];
+
+    if (this.ended) return this._result({ ok: false, error: "Combat already ended." });
+    if (this.turn !== "player") return this._result({ ok: false, error: "Not your turn." });
+
+    const a = (actionKey || "").toLowerCase().trim();
+    const b = (arg || "").toLowerCase().trim();
+
+    // Player turn
+    if (a === "attack") this._playerAttack();
+    else if (a === "defend") this._playerDefend();
+    else if (a === "spell") this._playerSpell(b || "fire");
+    else if (a === "item") this._playerItem(b || "potion");
+    else if (a === "flee") this._playerFlee();
+    else return this._result({ ok: false, error: `Unknown combat action: ${actionKey}` });
+
+    if (this.ended) return this._result({ ok: true });
+
+    // Enemy turn
+    this.turn = "enemy";
+    this._enemyTurn();
+
+    if (!this.ended) this.turn = "player";
+
+    return this._result({ ok: true });
   }
 
-  return { hit: false, d20, total, dmg: 0, crit: false, fumble: false };
-}
+  // --- actions ---
+  _playerAttack() {
+    const roll = d20();
+    const total = roll + (this.player.to_hit ?? 0);
+    const crit = roll === 20;
+    const fumble = roll === 1;
 
-export function maybeFlee(enemy) {
-  // cowardly might flee when low
-  if (enemy.trait === "cowardly" && enemy.HP <= 4) {
-    return Math.random() < 0.5;
+    const hit = !fumble && (crit || total >= this.enemy.AC);
+    let dmg = 0;
+
+    if (hit) {
+      dmg = rollDamage(this.player.damage);
+      if (crit) dmg += rollDamage(this.player.damage);
+      this.enemy.HP -= dmg;
+    }
+
+    this.log.push({
+      type: "player_attack",
+      roll,
+      total,
+      hit,
+      crit,
+      fumble,
+      dmg,
+      enemyHP: this.enemy.HP,
+    });
+
+    if (this.enemy.HP <= 0) this._end("player");
   }
-  return false;
-}
 
-/**
- * A PURE-ish combat runner:
- * - Does NOT print
- * - Returns a result object you can render later in the UI
- *
- * Returns:
- * {
- *   winnerName,
- *   turns: [ { actor: "player"|"enemy", ...attackResult, playerHP, enemyHP } ],
- *   fled: boolean
- * }
- */
-export function runCombat(player, enemy) {
-  const turns = [];
-  let isPlayerTurn = true;
-  let fled = false;
+  _playerDefend() {
+    this.player.status.defending = 1; // halves next enemy hit
+    this.log.push({ type: "player_defend", text: "You brace for impact (Defend)." });
+  }
 
-  while (player.HP > 0 && enemy.HP > 0) {
-    if (!isPlayerTurn) {
-      if (maybeFlee(enemy)) {
-        fled = true;
-        break;
+  _playerSpell(spellName) {
+    const mp = this.player.MP ?? 0;
+    if (mp <= 0) {
+      this.log.push({ type: "player_spell_fail", text: "No MP left!" });
+      return;
+    }
+
+    this.player.MP = mp - 1;
+
+    if (spellName === "fire") {
+      const roll = d20();
+      const total = roll + (this.player.INT ?? 0) + 2;
+      const crit = roll === 20;
+      const fumble = roll === 1;
+
+      const hit = !fumble && (crit || total >= this.enemy.AC);
+      let dmg = 0;
+
+      if (hit) {
+        dmg = randInt(5, 12) + Math.floor((this.player.INT ?? 0) / 2);
+        if (crit) dmg += randInt(3, 8);
+        this.enemy.HP -= dmg;
       }
+
+      this.log.push({
+        type: "player_spell",
+        spell: "Fire",
+        roll,
+        total,
+        hit,
+        crit,
+        fumble,
+        dmg,
+        enemyHP: this.enemy.HP,
+        mpLeft: this.player.MP
+      });
+
+      if (this.enemy.HP <= 0) this._end("player");
+      return;
     }
 
-    if (isPlayerTurn) {
-      const r = attack(player, enemy);
-      turns.push({
-        actor: "player",
-        ...r,
-        playerHP: Math.max(player.HP, 0),
-        enemyHP: Math.max(enemy.HP, 0),
+    if (spellName === "ice") {
+      const roll = d20();
+      const total = roll + (this.player.INT ?? 0);
+      const crit = roll === 20;
+      const fumble = roll === 1;
+
+      const hit = !fumble && (crit || total >= this.enemy.AC);
+      let dmg = 0;
+
+      if (hit) {
+        dmg = randInt(3, 8);
+        if (crit) dmg += randInt(2, 6);
+        this.enemy.HP -= dmg;
+        this.enemy.status.slowed = 2;
+      }
+
+      this.log.push({
+        type: "player_spell",
+        spell: "Ice",
+        roll,
+        total,
+        hit,
+        crit,
+        fumble,
+        dmg,
+        enemyHP: this.enemy.HP,
+        mpLeft: this.player.MP
       });
-    } else {
-      const r = attack(enemy, player);
-      turns.push({
-        actor: "enemy",
-        ...r,
-        playerHP: Math.max(player.HP, 0),
-        enemyHP: Math.max(enemy.HP, 0),
-      });
+
+      if (this.enemy.HP <= 0) this._end("player");
+      return;
     }
 
-    isPlayerTurn = !isPlayerTurn;
+    // Unknown spell: refund MP
+    this.player.MP += 1;
+    this.log.push({ type: "player_spell_fail", text: `Unknown spell: ${spellName}. Try: fire, ice` });
   }
 
-  const winnerName =
-    fled ? player.name : (player.HP > 0 ? player.name : enemy.name);
+  _playerItem(itemName) {
+    const inv = this.player.inventory ?? [];
+    const idx = inv.findIndex(x => x.toLowerCase() === itemName.toLowerCase());
+    if (idx === -1) {
+      this.log.push({ type: "player_item_fail", text: `No item: ${itemName}` });
+      return;
+    }
 
-  return { winnerName, turns, fled };
+    if (itemName.toLowerCase() === "potion") {
+      inv.splice(idx, 1);
+      const heal = randInt(8, 12);
+      this.player.HP += heal;
+      this.log.push({ type: "player_item", item: "Potion", heal, playerHP: this.player.HP });
+      return;
+    }
+
+    this.log.push({ type: "player_item_fail", text: `Item not usable yet: ${itemName}` });
+  }
+
+  _playerFlee() {
+    const dc = 12 + Math.floor((this.enemy.AC ?? 10) / 5);
+    const roll = d20();
+    const total = roll + (this.player.CHA ?? 0);
+    const success = total >= dc;
+
+    this.log.push({ type: "player_flee", roll, total, dc, success });
+
+    if (success) this._end("fled");
+  }
+
+  _enemyTurn() {
+    if (this.ended) return;
+
+    // Apply slow penalty FIRST, then tick it down after the attack
+    const slowed = this.enemy.status.slowed ?? 0;
+    let toHit = (this.enemy.to_hit ?? 0) + (slowed > 0 ? -2 : 0);
+
+    // 80% attack, 20% taunt
+    if (Math.random() < 0.2) {
+      this.log.push({ type: "enemy_taunt", text: `${this.enemy.name} snarls and circles…` });
+      // tick slow even on taunt so it still wears off
+      if (slowed > 0) this.enemy.status.slowed = slowed - 1;
+      return;
+    }
+
+    const roll = d20();
+    const total = roll + toHit;
+    const crit = roll === 20;
+    const fumble = roll === 1;
+
+    const hit = !fumble && (crit || total >= this.player.AC);
+    let dmg = 0;
+
+    if (hit) {
+      dmg = rollDamage(this.enemy.damage);
+      if (crit) dmg += rollDamage(this.enemy.damage);
+
+      // Defend halves dmg once
+      if ((this.player.status.defending ?? 0) > 0) {
+        dmg = Math.max(0, Math.floor(dmg / 2));
+        delete this.player.status.defending;
+      }
+
+      this.player.HP -= dmg;
+    }
+
+    this.log.push({
+      type: "enemy_attack",
+      roll,
+      total,
+      hit,
+      crit,
+      fumble,
+      dmg,
+      playerHP: this.player.HP,
+    });
+
+    // tick slow AFTER the action
+    if (slowed > 0) this.enemy.status.slowed = slowed - 1;
+
+    if (this.player.HP <= 0) this._end("enemy");
+  }
+
+  _end(winner) {
+    this.ended = true;
+    this.winner = winner;
+    this.log.push({ type: "combat_end", winner });
+  }
+
+  _result(extra = {}) {
+    return {
+      ...extra,
+      log: [...this.log],
+      state: this.getPublicState(),
+      ended: this.ended,
+      winner: this.winner,
+    };
+  }
 }

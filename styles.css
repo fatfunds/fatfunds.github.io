@@ -438,26 +438,35 @@ section p {
   border:1px solid rgba(255,255,255,0.18);
 }
 
-.battle.hidden { display: none; }
+/* =========================================================
+   INLINE BATTLE PANEL (inside Adventure .hud-main)
+   Use <div class="battle-panel ..."> in your HTML
+   ========================================================= */
+.battle-panel.hidden { display: none; }
 
-.battle{
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  background: rgba(0,0,0,.55);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding: 18px;
+.battle-panel{
+  padding: 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.18);
 }
 
-.battle-frame{
-  width: min(980px, 96vw);
-  aspect-ratio: 16 / 9;
+/* Command row under the frame */
+.battle-panel .battle-cmd{
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* Frame now fits the hud-main width */
+.battle-panel .battle-frame{
+  width: 100%;
+  height: 360px;          /* inline height */
+  aspect-ratio: auto;     /* override any overlay assumptions */
   position: relative;
   border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0,0,0,.55);
+  box-shadow: 0 20px 60px rgba(0,0,0,.45);
   border: 1px solid rgba(255,255,255,.12);
   animation: battleIn .18s ease-out;
 }
@@ -467,6 +476,7 @@ section p {
   to{ transform: scale(1); opacity: 1; }
 }
 
+/* Background of the battle frame */
 .battle-bg{
   position:absolute;
   inset:0;
@@ -532,6 +542,13 @@ section p {
   border: 1px solid rgba(255,255,255,.12);
   width: min(280px, 70%);
 }
+
+.battle-enemy .nameplate{
+  left: auto;
+  right: 0;
+  text-align: left;
+}
+
 .nameplate .name{
   font-weight: 700;
   letter-spacing: .2px;
@@ -594,8 +611,8 @@ section p {
 /*
   Sprite sheet animation:
   - set on element:
-    --w: frame width
-    --h: frame height
+    --w: frame width (e.g. 96px)
+    --h: frame height (e.g. 96px)
     --frames: number of frames
     --speed: duration (e.g. .8s)
 */
@@ -612,7 +629,7 @@ section p {
   to   { background-position: calc(var(--w) * var(--frames) * -1) 0; }
 }
 
-/* Small hit shake */
+/* Small hit shake (NOTE: transform can conflict with sprite-enemy flip) */
 .sprite.shake{
   animation: hitShake .18s linear 1;
 }
@@ -641,8 +658,9 @@ section p {
 @media (max-width: 1000px){
   .hud-grid{ grid-template-columns: 1fr; }
   .hud-badges{ justify-content:flex-start; }
+  .battle-panel .battle-frame{ height: 320px; }
+  .battle-panel .battle-cmd{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-
 
 /* ===== RESPONSIVE ===== */
 @media (max-width: 1000px) {
@@ -660,4 +678,6 @@ section p {
   .scroll-cue { animation: none; }
   .project-card { transition: none; transform: none; opacity: 1; }
   .hero-overlay { backdrop-filter: none; }
+  .sprite.sheet{ animation: none; }
+  .battle-panel .battle-frame{ animation: none; }
 }
