@@ -1,304 +1,490 @@
 // =========================
-// FILE: combat-controller.js
-// Step-based "FF-lite" turn combat
+// FILE: adventure-ui.js
+// Hooks AdventureEngine -> HUD + Battle UI
 // =========================
 
-function randInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+import { AdventureEngine } from "./engine.js";
+import { CombatController } from "./combat.js";
+
+const game = new AdventureEngine();
+let combat = null; // CombatController when in battle
+
+// ---------- DOM helpers ----------
+const $ = (id) => document.getElementById(id);
+
+function setText(id, text) {
+  const el = $(id);
+  if (el) el.textContent = text;
 }
 
-function d20() {
-  return randInt(1, 20);
+function addLog(text, dim = false) {
+  const log = $("hud-log");
+  if (!log) return;
+
+  const line = document.createElement("div");
+  line.className = "log-line" + (dim ? " dim" : "");
+  line.textContent = text;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
 }
 
-function rollDamage([min, max]) {
-  return randInt(min, max);
+function clearLog() {
+  const log = $("hud-log");
+  if (log) log.innerHTML = "";
 }
 
-export class CombatController {
-  constructor(playerRef, enemy) {
-    // We mutate playerRef HP directly (so engine/player stays in sync)
-    this.player = playerRef;
-    this.enemy = enemy;
+function clamp01(x) {
+  return Math.max(0, Math.min(1, x));
+}
 
-    this.turn = "player"; // "player" | "enemy"
-    this.ended = false;
-    this.winner = null; // "player" | "enemy" | "fled"
-
-    // very small resources / statuses
-    this.player.status = this.player.status ?? {};
-    this.player.MP = this.player.MP ?? 3;            // starter MP
-    this.player.inventory = this.player.inventory ?? ["potion"]; // starter item
-
-    this.enemy.status = this.enemy.status ?? {};
-
-    this.log = []; // events since last action
+// ---------- HUD render ----------
+function renderPlayer(p) {
+  if (!p) {
+    setText("s-name", "—");
+    setText("s-class", "—");
+    setText("s-hp", "—");
+    setText("s-ac", "—");
+    setText("s-tohit", "—");
+    setText("s-dmg", "—");
+    setText("s-str", "—");
+    setText("s-int", "—");
+    setText("s-cha", "—");
+    setText("s-status", "—");
+    return;
   }
 
-  getPublicState() {
-    return {
-      active: !this.ended,
-      turn: this.turn,
-      player: {
-        name: this.player.name,
-        HP: this.player.HP,
-        AC: this.player.AC,
-        to_hit: this.player.to_hit,
-        damage: this.player.damage,
-        STR: this.player.STR,
-        INT: this.player.INT,
-        CHA: this.player.CHA,
-        MP: this.player.MP ?? 0,
-        status: { ...(this.player.status ?? {}) },
-        inventory: [...(this.player.inventory ?? [])],
-      },
-      enemy: {
-        name: this.enemy.name,
-        HP: this.enemy.HP,
-        AC: this.enemy.AC,
-        to_hit: this.enemy.to_hit,
-        damage: this.enemy.damage,
-        status: { ...(this.enemy.status ?? {}) },
-      },
-      actions: this.turn === "player"
-        ? ["attack", "defend", "spell", "item", "flee"]
-        : [],
-    };
+  setText("s-name", p.name);
+  setText("s-class", p.class);
+  setText("s-hp", String(p.HP));
+  setText("s-ac", String(p.AC));
+  setText("s-tohit", `+${p.to_hit}`);
+  setText("s-dmg", `${p.damage[0]}-${p.damage[1]}`);
+  setText("s-str", String(p.STR));
+  setText("s-int", String(p.INT));
+  setText("s-cha", String(p.CHA));
+
+  const statusKeys = Object.keys(p.status ?? {});
+  setText("s-status", statusKeys.length ? statusKeys.map(k => `${k}(${p.status[k]})`).join(", ") : "—");
+}
+
+function renderLocation(area) {
+  if (!area) {
+    setText("hud-area", "📍 —");
+    setText("loc-name", "—");
+    setText("loc-desc", "—");
+    return;
   }
 
-  // --- main entry ---
-  act(actionKey, arg = "") {
-    this.log = [];
+  setText("hud-area", `📍 ${area.name}`);
+  setText("loc-name", area.name);
+  setText("loc-desc", area.description);
+}
 
-    if (this.ended) {
-      return this._result({ ok: false, error: "Combat already ended." });
-    }
-    if (this.turn !== "player") {
-      return this._result({ ok: false, error: "Not your turn." });
-    }
+function setChoicesVisible(visible) {
+  const wrap = $("hud-choices");
+  if (!wrap) return;
+  wrap.hidden = !visible;
+}
 
-    const a = (actionKey || "").toLowerCase().trim();
-    const b = (arg || "").toLowerCase().trim();
-
-    // Player turn
-    if (a === "attack") this._playerAttack();
-    else if (a === "defend") this._playerDefend();
-    else if (a === "spell") this._playerSpell(b || "fire");
-    else if (a === "item") this._playerItem(b || "potion");
-    else if (a === "flee") this._playerFlee();
-    else return this._result({ ok: false, error: `Unknown combat action: ${actionKey}` });
-
-    // If player ended it, stop
-    if (this.ended) return this._result({ ok: true });
-
-    // Enemy turn
-    this.turn = "enemy";
-    this._enemyTurn();
-
-    // End checks
-    if (!this.ended) this.turn = "player";
-
-    // Small regen spice: +1 MP every 3 rounds? (optional later)
-    return this._result({ ok: true });
+function renderChoices(choices) {
+  if (!choices || choices.length < 2) {
+    setChoicesVisible(false);
+    return;
   }
 
-  // --- actions ---
-  _playerAttack() {
-    const roll = d20();
-    const total = roll + (this.player.to_hit ?? 0);
-    const crit = roll === 20;
-    const fumble = roll === 1;
+  setChoicesVisible(true);
 
-    let hit = !fumble && (crit || total >= this.enemy.AC);
-    let dmg = 0;
+  const c1 = choices[0];
+  const c2 = choices[1];
 
-    if (hit) {
-      dmg = rollDamage(this.player.damage);
-      if (crit) dmg += rollDamage(this.player.damage); // simple crit = double roll
-      this.enemy.HP -= dmg;
-    }
+  const b1 = $("choice-1");
+  const b2 = $("choice-2");
 
-    this.log.push({
-      type: "player_attack",
-      roll,
-      total,
-      hit,
-      crit,
-      fumble,
-      dmg,
-      enemyHP: this.enemy.HP,
-    });
+  if (b1) b1.textContent = `1) ${c1.text}  [${c1.stat} DC ${c1.dc}]`;
+  if (b2) b2.textContent = `2) ${c2.text}  [${c2.stat} DC ${c2.dc}]`;
 
-    if (this.enemy.HP <= 0) this._end("player");
+  b1.dataset.choice = "1";
+  b2.dataset.choice = "2";
+}
+
+function renderEncounterPayload(payload) {
+  setText("hud-encounters", String(payload.encounterNumber));
+  renderLocation(payload.area);
+  renderPlayer(payload.player);
+
+  addLog(`Encounter #${payload.encounterNumber} — ${payload.area.name}`, true);
+  addLog(payload.encounter.text);
+
+  renderChoices(payload.choices);
+}
+
+function renderResolutionPayload(payload) {
+  const r = payload.roll;
+  addLog(`You chose: ${payload.choice.text}`, true);
+  addLog(`${payload.choice.stat} check: d20=${r.d20} + ${r.mod} = ${r.total} vs DC ${payload.choice.dc} → ${r.success ? "SUCCESS" : "FAIL"}`);
+  addLog(payload.message);
+
+  if (payload.repChange) addLog(`Reputation: ${payload.repChange.faction} ${payload.repChange.delta > 0 ? "+" : ""}${payload.repChange.delta}`, true);
+  if (payload.statusApplied) addLog(`Status: ${payload.statusApplied.key} now ${payload.statusApplied.newValue}`, true);
+
+  // Update stats after resolution
+  const state = game.getState();
+  renderPlayer(state.player);
+
+  // If combat gets triggered, we DO NOT auto-next encounter.
+  // We open battle overlay and let the player fight first.
+  if (payload.triggerCombat && payload.combat) {
+    beginCombatFromResolution(payload.combat.enemy);
+    return;
   }
 
-  _playerDefend() {
-    this.player.status.defending = 1; // reduces next enemy hit
-    this.log.push({ type: "player_defend", text: "You brace for impact (Defend)." });
+  if (payload.runEnded) {
+    addLog("☠ Run ended. Click Start Run to play again.", true);
+    setChoicesVisible(false);
+    return;
   }
 
-  _playerSpell(spellName) {
-    const mp = this.player.MP ?? 0;
-    if (mp <= 0) {
-      this.log.push({ type: "player_spell_fail", text: "No MP left!" });
-      return;
-    }
+  addLog("—", true);
+  const next = game.nextEncounter();
+  renderEncounterPayload(next);
+}
 
-    this.player.MP = mp - 1;
-
-    // Simple spells (easy to expand)
-    if (spellName === "fire") {
-      // high damage, standard hit check using INT as bonus
-      const roll = d20();
-      const total = roll + (this.player.INT ?? 0) + 2;
-      const hit = roll !== 1 && (roll === 20 || total >= this.enemy.AC);
-      let dmg = 0;
-
-      if (hit) {
-        dmg = randInt(5, 12) + Math.floor((this.player.INT ?? 0) / 2);
-        this.enemy.HP -= dmg;
-      }
-
-      this.log.push({ type: "player_spell", spell: "Fire", roll, total, hit, dmg, enemyHP: this.enemy.HP, mpLeft: this.player.MP });
-
-      if (this.enemy.HP <= 0) this._end("player");
-      return;
-    }
-
-    if (spellName === "ice") {
-      // lower dmg but can "slow" (enemy -2 to_hit for 2 turns)
-      const roll = d20();
-      const total = roll + (this.player.INT ?? 0);
-      const hit = roll !== 1 && (roll === 20 || total >= this.enemy.AC);
-      let dmg = 0;
-
-      if (hit) {
-        dmg = randInt(3, 8);
-        this.enemy.HP -= dmg;
-        this.enemy.status.slowed = 2;
-      }
-
-      this.log.push({ type: "player_spell", spell: "Ice", roll, total, hit, dmg, enemyHP: this.enemy.HP, mpLeft: this.player.MP });
-
-      if (this.enemy.HP <= 0) this._end("player");
-      return;
-    }
-
-    // Unknown spell: refund MP
-    this.player.MP += 1;
-    this.log.push({ type: "player_spell_fail", text: `Unknown spell: ${spellName}. Try: fire, ice` });
-  }
-
-  _playerItem(itemName) {
-    const inv = this.player.inventory ?? [];
-    const idx = inv.findIndex(x => x.toLowerCase() === itemName.toLowerCase());
-    if (idx === -1) {
-      this.log.push({ type: "player_item_fail", text: `No item: ${itemName}` });
-      return;
-    }
-
-    if (itemName.toLowerCase() === "potion") {
-      inv.splice(idx, 1);
-      const heal = randInt(8, 12);
-      this.player.HP += heal;
-      this.log.push({ type: "player_item", item: "Potion", heal, playerHP: this.player.HP });
-      return;
-    }
-
-    this.log.push({ type: "player_item_fail", text: `Item not usable yet: ${itemName}` });
-  }
-
-  _playerFlee() {
-    // CHA check vs DC based on enemy "power"
-    const dc = 12 + Math.floor((this.enemy.AC ?? 10) / 5);
-    const roll = d20();
-    const total = roll + (this.player.CHA ?? 0);
-    const success = total >= dc;
-
-    this.log.push({ type: "player_flee", roll, total, dc, success });
-
-    if (success) this._end("fled");
-  }
-
-  _enemyTurn() {
-    if (this.ended) return;
-
-    // If slowed, reduce to_hit
-    const slow = this.enemy.status.slowed ?? 0;
-    if (slow > 0) this.enemy.status.slowed = slow - 1;
-
-    // Basic enemy behavior: 80% attack, 20% "snarl" (no dmg)
-    if (Math.random() < 0.2) {
-      this.log.push({ type: "enemy_taunt", text: `${this.enemy.name} snarls and circles…` });
-      return;
-    }
-
-    const roll = d20();
-    let toHit = (this.enemy.to_hit ?? 0);
-    if ((this.enemy.status.slowed ?? 0) > 0) toHit -= 2;
-
-    const total = roll + toHit;
-    const crit = roll === 20;
-    const fumble = roll === 1;
-
-    const hit = !fumble && (crit || total >= this.player.AC);
-    let dmg = 0;
-
-    if (hit) {
-      dmg = rollDamage(this.enemy.damage);
-      if (crit) dmg += rollDamage(this.enemy.damage);
-
-      // Defend halves dmg once
-      if ((this.player.status.defending ?? 0) > 0) {
-        dmg = Math.max(0, Math.floor(dmg / 2));
-        delete this.player.status.defending;
-      }
-
-      this.player.HP -= dmg;
-    } else {
-      // Defend still wears off after an enemy swing? optional:
-      // if ((this.player.status.defending ?? 0) > 0) delete this.player.status.defending;
-    }
-
-    function showBattleUI(show) {
-  const panel = document.getElementById("battle-panel");
+// ---------- Battle UI helpers ----------
+function showBattleUI(show) {
+  const panel = $("battle-panel");
   if (!panel) return;
 
   panel.classList.toggle("hidden", !show);
   panel.setAttribute("aria-hidden", show ? "false" : "true");
 
-  const adventure = document.getElementById("adventure");
-  if (adventure) adventure.classList.toggle("battle-active", show);
+  // Optional: dim/lock the HUD input during combat
+  $("hud-input") && ($("hud-input").disabled = show);
+  $("hud-send") && ($("hud-send").disabled = show);
 }
 
+function setHPBar(fillId, current, max) {
+  const el = $(fillId);
+  if (!el) return;
+  const pct = max <= 0 ? 0 : clamp01(current / max);
+  el.style.width = `${Math.round(pct * 100)}%`;
+}
 
-    this.log.push({
-      type: "enemy_attack",
-      roll,
-      total,
-      hit,
-      crit,
-      fumble,
-      dmg,
-      playerHP: this.player.HP,
-    });
+function setBattleText(text) {
+  setText("battle-text", text);
+}
 
-    if (this.player.HP <= 0) this._end("enemy");
+// ---------- Sprite sheet config ----------
+// Put your images in your repo, for example:
+// assets/sprites/player/warrior_idle.png
+// assets/sprites/player/warrior_attack.png
+// assets/sprites/enemies/goblin_idle.png
+// assets/sprites/enemies/goblin_attack.png
+
+const SPRITES = {
+  player: {
+    Warrior: { idle: "assets/sprites/player/warrior_idle.png", attack: "assets/sprites/player/warrior_attack.png", w: 64, h: 64, frames: 6, speed: ".7s" },
+    Cleric:  { idle: "assets/sprites/player/cleric_idle.png",  attack: "assets/sprites/player/cleric_attack.png",  w: 64, h: 64, frames: 6, speed: ".7s" },
+    Wizard:  { idle: "assets/sprites/player/wizard_idle.png",  attack: "assets/sprites/player/wizard_attack.png",  w: 64, h: 64, frames: 6, speed: ".7s" },
+    "Shambling Fool": { idle: "assets/sprites/player/fool_idle.png", attack: "assets/sprites/player/fool_attack.png", w: 64, h: 64, frames: 6, speed: ".7s" },
+  },
+  enemy: {
+    Goblin:   { idle: "assets/sprites/enemies/goblin_idle.png",   attack: "assets/sprites/enemies/goblin_attack.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
+    Bandit:   { idle: "assets/sprites/enemies/bandit_idle.png",   attack: "assets/sprites/enemies/bandit_attack.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
+    Skeleton: { idle: "assets/sprites/enemies/skeleton_idle.png", attack: "assets/sprites/enemies/skeleton_attack.png", w: 64, h: 64, frames: 6, speed: ".7s" },
+    Wolf:     { idle: "assets/sprites/enemies/wolf_idle.png",     attack: "assets/sprites/enemies/wolf_attack.png",     w: 64, h: 64, frames: 6, speed: ".7s" },
+    "Cult Acolyte": { idle: "assets/sprites/enemies/cult_idle.png", attack: "assets/sprites/enemies/cult_attack.png", w: 64, h: 64, frames: 6, speed: ".7s" },
+  }
+};
+
+function applySheet(el, img, meta) {
+  if (!el) return;
+  el.style.backgroundImage = `url("${img}")`;
+  el.style.setProperty("--w", `${meta.w}px`);
+  el.style.setProperty("--h", `${meta.h}px`);
+  el.style.setProperty("--frames", String(meta.frames));
+  el.style.setProperty("--speed", meta.speed);
+}
+
+function setSpriteIdle(playerClass, enemyType) {
+  const pEl = $("player-sprite");
+  const eEl = $("enemy-sprite");
+
+  const pMeta = SPRITES.player[playerClass] ?? SPRITES.player.Warrior;
+  const eMeta = SPRITES.enemy[enemyType] ?? SPRITES.enemy.Goblin;
+
+  applySheet(pEl, pMeta.idle, pMeta);
+  applySheet(eEl, eMeta.idle, eMeta);
+}
+
+function playSpriteAttack(who, playerClass, enemyType) {
+  const el = who === "player" ? $("player-sprite") : $("enemy-sprite");
+  if (!el) return;
+
+  const meta = who === "player"
+    ? (SPRITES.player[playerClass] ?? SPRITES.player.Warrior)
+    : (SPRITES.enemy[enemyType] ?? SPRITES.enemy.Goblin);
+
+  const img = who === "player" ? meta.attack : meta.attack;
+
+  applySheet(el, img, meta);
+
+  // Return to idle after a short delay
+  window.setTimeout(() => {
+    setSpriteIdle(playerClass, enemyType);
+  }, 450);
+}
+
+// ---------- Combat flow ----------
+let combatMax = { playerHP: 1, enemyHP: 1 };
+let combatEnemyType = "Goblin";
+let combatPlayerClass = "Warrior";
+
+function beginCombatFromResolution(enemyObj) {
+  // enemyObj is your generated enemy payload (HP/AC/to_hit/etc)
+  const state = game.getState();
+  if (!state.player) return;
+
+  combat = new CombatController(game.player ?? state.player, enemyObj); // playerRef (same object)
+  const pub = combat.getPublicState();
+
+  combatMax.playerHP = pub.player.HP;
+  combatMax.enemyHP = pub.enemy.HP;
+
+  combatEnemyType = enemyObj.type ?? "Goblin";
+  combatPlayerClass = pub.player?.class ?? "Warrior";
+
+  setText("player-name", pub.player.name);
+  setText("enemy-name", pub.enemy.name);
+
+  setHPBar("player-hp", pub.player.HP, combatMax.playerHP);
+  setHPBar("enemy-hp", pub.enemy.HP, combatMax.enemyHP);
+
+  setSpriteIdle(combatPlayerClass, combatEnemyType);
+
+  setBattleText(`A wild ${enemyObj.type ?? "enemy"} appears!`);
+  showBattleUI(true);
+
+  addLog(`⚔ Combat begins: ${pub.enemy.name}`, true);
+}
+
+function endCombatAndReturnToStory(result) {
+  showBattleUI(false);
+
+  // Update side panel stats after combat
+  const s = game.getState();
+  renderPlayer(s.player);
+
+  if (result.winner === "fled") {
+    addLog("You escaped!", true);
+    // After fleeing, just go next encounter
+    const next = game.nextEncounter();
+    renderEncounterPayload(next);
+    combat = null;
+    return;
   }
 
-  _end(winner) {
-    this.ended = true;
-    this.winner = winner;
-    this.log.push({ type: "combat_end", winner });
+  if (result.winner === "player") {
+    addLog("You won the fight!", true);
+    const next = game.nextEncounter();
+    renderEncounterPayload(next);
+    combat = null;
+    return;
   }
 
-  _result(extra = {}) {
-    return {
-      ...extra,
-      log: [...this.log],
-      state: this.getPublicState(),
-      ended: this.ended,
-      winner: this.winner,
-    };
+  // enemy wins
+  addLog("☠ You were defeated. Type 'start' to try again.", true);
+  setChoicesVisible(false);
+  combat = null;
+}
+
+// Convert combat log into text
+function printCombatLog(entries) {
+  for (const e of entries) {
+    if (e.type === "player_attack") {
+      setBattleText(`You attack! ${e.hit ? `Hit for ${e.dmg}.` : "Miss!"}`);
+      addLog(`You attack: d20=${e.roll} total=${e.total} ${e.hit ? `HIT (${e.dmg})` : "MISS"}`, true);
+    } else if (e.type === "enemy_attack") {
+      setBattleText(`${combat.enemy.name} attacks! ${e.hit ? `Hit for ${e.dmg}.` : "Miss!"}`);
+      addLog(`Enemy attack: d20=${e.roll} total=${e.total} ${e.hit ? `HIT (${e.dmg})` : "MISS"}`, true);
+    } else if (e.type === "player_defend") {
+      setBattleText("You defend!");
+      addLog(e.text, true);
+    } else if (e.type === "player_spell") {
+      setBattleText(`${e.spell}! ${e.hit ? `Deals ${e.dmg}.` : "Fails!"}`);
+      addLog(`Spell ${e.spell}: ${e.hit ? `HIT (${e.dmg})` : "MISS"} (MP ${e.mpLeft})`, true);
+    } else if (e.type === "player_item") {
+      setBattleText(`You use a Potion (+${e.heal} HP).`);
+      addLog(`Potion heals ${e.heal}.`, true);
+    } else if (e.type === "player_flee") {
+      setBattleText(e.success ? "You got away!" : "Can't escape!");
+      addLog(`Flee: ${e.total} vs DC ${e.dc} → ${e.success ? "SUCCESS" : "FAIL"}`, true);
+    } else if (e.type === "enemy_taunt") {
+      setBattleText(e.text);
+      addLog(e.text, true);
+    } else if (e.type === "combat_end") {
+      // handled elsewhere
+    }
   }
 }
+
+function runCombatAction(actionKey, arg = "") {
+  if (!combat) return;
+
+  const before = combat.getPublicState();
+
+  // play attack animation immediately for feel
+  if (actionKey === "attack") playSpriteAttack("player", combatPlayerClass, combatEnemyType);
+  if (actionKey === "spell") playSpriteAttack("player", combatPlayerClass, combatEnemyType);
+
+  const result = combat.act(actionKey, arg);
+
+  const after = result.state;
+
+  // update bars
+  setHPBar("player-hp", after.player.HP, combatMax.playerHP);
+  setHPBar("enemy-hp", after.enemy.HP, combatMax.enemyHP);
+
+  printCombatLog(result.log);
+
+  // enemy attacked? play enemy attack anim if their turn produced an attack
+  if (result.log.some(x => x.type === "enemy_attack")) {
+    playSpriteAttack("enemy", combatPlayerClass, combatEnemyType);
+  }
+
+  if (result.ended) {
+    endCombatAndReturnToStory(result);
+  }
+}
+
+// ---------- Command handling ----------
+function handleCommand(raw) {
+  const cmd = raw.trim();
+  if (!cmd) return;
+
+  addLog(`> ${cmd}`, true);
+  const lower = cmd.toLowerCase();
+
+  // If in combat, route combat commands
+  if (combat && combat.getPublicState().active) {
+    // allow: attack, defend, run, flee, item potion, spell fire
+    if (lower === "attack") return runCombatAction("attack");
+    if (lower === "defend") return runCombatAction("defend");
+    if (lower === "run" || lower === "flee") return runCombatAction("flee");
+
+    if (lower.startsWith("spell")) {
+      const parts = lower.split(/\s+/);
+      return runCombatAction("spell", parts[1] || "fire");
+    }
+    if (lower.startsWith("item")) {
+      const parts = lower.split(/\s+/);
+      return runCombatAction("item", parts[1] || "potion");
+    }
+
+    addLog("Combat commands: attack, defend, spell fire|ice, item potion, run", true);
+    return;
+  }
+
+  // Story commands
+  if (lower === "help") {
+    addLog("Commands: start [1-4], stats, areas, travel <roads|chapel|marsh>, reset");
+    addLog("During combat: attack, defend, spell fire|ice, item potion, run");
+    return;
+  }
+
+  if (lower.startsWith("start")) {
+    clearLog();
+
+    const parts = lower.split(/\s+/);
+    let classChoice = parts[1] ? Number(parts[1]) : NaN;
+    if (!Number.isFinite(classChoice) || classChoice < 1 || classChoice > 4) {
+      classChoice = Math.floor(Math.random() * 4) + 1;
+    }
+
+    addLog(`Starting new run… (Class ${classChoice})`, true);
+
+    const payload = game.startRun({ nameInput: "", classChoice, areaKey: "roads" });
+    renderEncounterPayload(payload);
+    return;
+  }
+
+  if (lower === "stats") {
+    const s = game.getState();
+    addLog(`Stats: HP ${s.player?.HP ?? "—"} | AC ${s.player?.AC ?? "—"} | STR ${s.player?.STR ?? "—"} | INT ${s.player?.INT ?? "—"} | CHA ${s.player?.CHA ?? "—"}`, true);
+    return;
+  }
+
+  if (lower === "areas") {
+    const areas = game.listAreas();
+    addLog("Areas: " + areas.map(a => a.key).join(", "));
+    return;
+  }
+
+  if (lower.startsWith("travel ")) {
+    const key = lower.split(/\s+/)[1];
+    try {
+      const payload = game.travelTo(key);
+      renderEncounterPayload(payload);
+    } catch {
+      addLog(`Unknown area: ${key}. Try: roads, chapel, marsh`);
+    }
+    return;
+  }
+
+  if (lower === "reset") {
+    game.reset();
+    combat = null;
+    clearLog();
+    renderPlayer(null);
+    renderLocation(null);
+    setText("hud-encounters", "0");
+    setChoicesVisible(false);
+    showBattleUI(false);
+    addLog("Reset complete. Type “start” to begin.", true);
+    return;
+  }
+
+  addLog("Unknown command. Type 'help'.", true);
+}
+
+// ---------- Wire up events ----------
+document.addEventListener("DOMContentLoaded", () => {
+  // Buttons
+  $("btn-start")?.addEventListener("click", () => handleCommand("start"));
+  $("btn-reset")?.addEventListener("click", () => handleCommand("reset"));
+
+  $("hud-send")?.addEventListener("click", () => handleCommand($("hud-input")?.value ?? ""));
+  $("hud-input")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleCommand($("hud-input")?.value ?? "");
+  });
+
+  // Choice buttons (story)
+  $("choice-1")?.addEventListener("click", () => {
+    try {
+      const payload = game.pickChoice(1);
+      renderResolutionPayload(payload);
+    } catch {
+      addLog("No active encounter. Type 'start'.", true);
+    }
+  });
+
+  $("choice-2")?.addEventListener("click", () => {
+    try {
+      const payload = game.pickChoice(2);
+      renderResolutionPayload(payload);
+    } catch {
+      addLog("No active encounter. Type 'start'.", true);
+    }
+  });
+
+  // Battle command buttons
+  $("cmd-attack")?.addEventListener("click", () => runCombatAction("attack"));
+  $("cmd-skill")?.addEventListener("click", () => runCombatAction("spell", "fire"));
+  $("cmd-item")?.addEventListener("click", () => runCombatAction("item", "potion"));
+  $("cmd-run")?.addEventListener("click", () => runCombatAction("flee"));
+
+  // Initial UI defaults
+  renderPlayer(null);
+  renderLocation(null);
+  setChoicesVisible(false);
+  showBattleUI(false);
+});
