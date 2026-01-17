@@ -1,5 +1,5 @@
 // =========================
-// FILE: combat-controller.js
+// FILE: Combat.js
 // Step-based "FF-lite" turn combat (ENGINE ONLY)
 // No DOM / no UI here.
 // =========================
@@ -18,7 +18,6 @@ function rollDamage([min, max]) {
 
 export class CombatController {
   constructor(playerRef, enemy) {
-    // We mutate playerRef HP directly (so engine/player stays in sync)
     this.player = playerRef;
     this.enemy = enemy;
 
@@ -26,14 +25,12 @@ export class CombatController {
     this.ended = false;
     this.winner = null; // "player" | "enemy" | "fled"
 
-    // small resources
     this.player.status = this.player.status ?? {};
     this.player.MP = this.player.MP ?? 3;
     this.player.inventory = this.player.inventory ?? ["potion"];
-
     this.enemy.status = this.enemy.status ?? {};
 
-    this.log = []; // events since last action
+    this.log = [];
   }
 
   getPublicState() {
@@ -67,7 +64,6 @@ export class CombatController {
     };
   }
 
-  // --- main entry ---
   act(actionKey, arg = "") {
     this.log = [];
 
@@ -77,7 +73,6 @@ export class CombatController {
     const a = (actionKey || "").toLowerCase().trim();
     const b = (arg || "").toLowerCase().trim();
 
-    // Player turn
     if (a === "attack") this._playerAttack();
     else if (a === "defend") this._playerDefend();
     else if (a === "spell") this._playerSpell(b || "fire");
@@ -87,22 +82,18 @@ export class CombatController {
 
     if (this.ended) return this._result({ ok: true });
 
-    // Enemy turn
     this.turn = "enemy";
     this._enemyTurn();
-
     if (!this.ended) this.turn = "player";
 
     return this._result({ ok: true });
   }
 
-  // --- actions ---
   _playerAttack() {
     const roll = d20();
     const total = roll + (this.player.to_hit ?? 0);
     const crit = roll === 20;
     const fumble = roll === 1;
-
     const hit = !fumble && (crit || total >= this.enemy.AC);
     let dmg = 0;
 
@@ -114,12 +105,7 @@ export class CombatController {
 
     this.log.push({
       type: "player_attack",
-      roll,
-      total,
-      hit,
-      crit,
-      fumble,
-      dmg,
+      roll, total, hit, crit, fumble, dmg,
       enemyHP: this.enemy.HP,
     });
 
@@ -127,7 +113,7 @@ export class CombatController {
   }
 
   _playerDefend() {
-    this.player.status.defending = 1; // halves next enemy hit
+    this.player.status.defending = 1;
     this.log.push({ type: "player_defend", text: "You brace for impact (Defend)." });
   }
 
@@ -139,75 +125,41 @@ export class CombatController {
     }
 
     this.player.MP = mp - 1;
+    const roll = d20();
+    let total, crit, fumble, hit, dmg = 0;
 
     if (spellName === "fire") {
-      const roll = d20();
-      const total = roll + (this.player.INT ?? 0) + 2;
-      const crit = roll === 20;
-      const fumble = roll === 1;
-
-      const hit = !fumble && (crit || total >= this.enemy.AC);
-      let dmg = 0;
-
-      if (hit) {
-        dmg = randInt(5, 12) + Math.floor((this.player.INT ?? 0) / 2);
-        if (crit) dmg += randInt(3, 8);
-        this.enemy.HP -= dmg;
-      }
-
-      this.log.push({
-        type: "player_spell",
-        spell: "Fire",
-        roll,
-        total,
-        hit,
-        crit,
-        fumble,
-        dmg,
-        enemyHP: this.enemy.HP,
-        mpLeft: this.player.MP
-      });
-
-      if (this.enemy.HP <= 0) this._end("player");
+      total = roll + (this.player.INT ?? 0) + 2;
+    } else if (spellName === "ice") {
+      total = roll + (this.player.INT ?? 0);
+    } else {
+      this.player.MP += 1;
+      this.log.push({ type: "player_spell_fail", text: `Unknown spell: ${spellName}. Try: fire, ice` });
       return;
     }
 
-    if (spellName === "ice") {
-      const roll = d20();
-      const total = roll + (this.player.INT ?? 0);
-      const crit = roll === 20;
-      const fumble = roll === 1;
+    crit = roll === 20;
+    fumble = roll === 1;
+    hit = !fumble && (crit || total >= this.enemy.AC);
 
-      const hit = !fumble && (crit || total >= this.enemy.AC);
-      let dmg = 0;
-
-      if (hit) {
-        dmg = randInt(3, 8);
-        if (crit) dmg += randInt(2, 6);
-        this.enemy.HP -= dmg;
-        this.enemy.status.slowed = 2;
-      }
-
-      this.log.push({
-        type: "player_spell",
-        spell: "Ice",
-        roll,
-        total,
-        hit,
-        crit,
-        fumble,
-        dmg,
-        enemyHP: this.enemy.HP,
-        mpLeft: this.player.MP
-      });
-
-      if (this.enemy.HP <= 0) this._end("player");
-      return;
+    if (hit) {
+      dmg = spellName === "fire"
+        ? randInt(5, 12) + Math.floor((this.player.INT ?? 0) / 2)
+        : randInt(3, 8);
+      if (crit) dmg += randInt(spellName === "fire" ? 3 : 2, spellName === "fire" ? 8 : 6);
+      this.enemy.HP -= dmg;
+      if (spellName === "ice") this.enemy.status.slowed = 2;
     }
 
-    // Unknown spell: refund MP
-    this.player.MP += 1;
-    this.log.push({ type: "player_spell_fail", text: `Unknown spell: ${spellName}. Try: fire, ice` });
+    this.log.push({
+      type: "player_spell",
+      spell: spellName.charAt(0).toUpperCase() + spellName.slice(1),
+      roll, total, hit, crit, fumble, dmg,
+      enemyHP: this.enemy.HP,
+      mpLeft: this.player.MP
+    });
+
+    if (this.enemy.HP <= 0) this._end("player");
   }
 
   _playerItem(itemName) {
@@ -243,14 +195,11 @@ export class CombatController {
   _enemyTurn() {
     if (this.ended) return;
 
-    // Apply slow penalty FIRST, then tick it down after the attack
     const slowed = this.enemy.status.slowed ?? 0;
     let toHit = (this.enemy.to_hit ?? 0) + (slowed > 0 ? -2 : 0);
 
-    // 80% attack, 20% taunt
     if (Math.random() < 0.2) {
       this.log.push({ type: "enemy_taunt", text: `${this.enemy.name} snarls and circles…` });
-      // tick slow even on taunt so it still wears off
       if (slowed > 0) this.enemy.status.slowed = slowed - 1;
       return;
     }
@@ -259,7 +208,6 @@ export class CombatController {
     const total = roll + toHit;
     const crit = roll === 20;
     const fumble = roll === 1;
-
     const hit = !fumble && (crit || total >= this.player.AC);
     let dmg = 0;
 
@@ -267,9 +215,8 @@ export class CombatController {
       dmg = rollDamage(this.enemy.damage);
       if (crit) dmg += rollDamage(this.enemy.damage);
 
-      // Defend halves dmg once
       if ((this.player.status.defending ?? 0) > 0) {
-        dmg = Math.max(0, Math.floor(dmg / 2));
+        dmg = Math.floor(dmg / 2);
         delete this.player.status.defending;
       }
 
@@ -278,18 +225,11 @@ export class CombatController {
 
     this.log.push({
       type: "enemy_attack",
-      roll,
-      total,
-      hit,
-      crit,
-      fumble,
-      dmg,
+      roll, total, hit, crit, fumble, dmg,
       playerHP: this.player.HP,
     });
 
-    // tick slow AFTER the action
     if (slowed > 0) this.enemy.status.slowed = slowed - 1;
-
     if (this.player.HP <= 0) this._end("enemy");
   }
 
@@ -308,4 +248,20 @@ export class CombatController {
       winner: this.winner,
     };
   }
+}
+export function runCombat(player, enemy) {
+  const combat = new CombatController(player, enemy);
+
+  while (!combat.ended) {
+    combat.act("attack"); // player turn
+    if (!combat.ended) {
+      combat.act(""); // enemy turn is auto-invoked inside
+    }
+  }
+
+  return {
+    winnerName: combat.winner === "player" ? player.name : enemy.name,
+    fled: combat.winner === "fled",
+    turns: combat.log,
+  };
 }
