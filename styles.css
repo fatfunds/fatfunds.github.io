@@ -51,8 +51,6 @@ a { color: inherit; }
   width: 100%;
   height: 100vh;
   overflow: hidden;
-
-  /* fallback if video can't autoplay */
   background: url("Screenshot 2025-11-11 165514.png") no-repeat center / cover;
 }
 
@@ -440,7 +438,6 @@ section p {
 
 /* =========================================================
    INLINE BATTLE PANEL (inside Adventure .hud-main)
-   Use <div class="battle-panel ..."> in your HTML
    ========================================================= */
 .battle-panel.hidden { display: none; }
 
@@ -450,7 +447,6 @@ section p {
   background: rgba(0,0,0,0.18);
 }
 
-/* Command row under the frame */
 .battle-panel .battle-cmd{
   margin-top: 12px;
   display: grid;
@@ -458,11 +454,10 @@ section p {
   gap: 10px;
 }
 
-/* Frame now fits the hud-main width */
 .battle-panel .battle-frame{
   width: 100%;
-  height: 360px;          /* inline height */
-  aspect-ratio: auto;     /* override any overlay assumptions */
+  height: 360px;
+  aspect-ratio: auto;
   position: relative;
   border-radius: 18px;
   overflow: hidden;
@@ -476,7 +471,6 @@ section p {
   to{ transform: scale(1); opacity: 1; }
 }
 
-/* Background of the battle frame */
 .battle-bg{
   position:absolute;
   inset:0;
@@ -507,6 +501,9 @@ section p {
   right: 9%;
   width: 42%;
   height: 48%;
+  /* reserve space for nameplate so sprite can't go under it */
+  padding-top: 62px;
+  box-sizing: border-box;
 }
 .battle-player{
   position:absolute;
@@ -514,6 +511,8 @@ section p {
   left: 7%;
   width: 48%;
   height: 52%;
+  padding-top: 62px;
+  box-sizing: border-box;
 }
 
 /* Ground shadows */
@@ -526,6 +525,7 @@ section p {
   border-radius: 999px;
   background: rgba(0,0,0,.35);
   filter: blur(2px);
+  z-index: 0;
 }
 .battle-player::after{ left: 20px; }
 .battle-enemy::after{ right: 20px; }
@@ -541,6 +541,7 @@ section p {
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255,255,255,.12);
   width: min(280px, 70%);
+  z-index: 3; /* always above sprite */
 }
 
 .battle-enemy .nameplate{
@@ -581,31 +582,43 @@ section p {
   border: 1px solid rgba(255,255,255,.14);
   font-size: 1.05rem;
   line-height: 1.35;
+  z-index: 4;
 }
 
 /* =========================================================
    SPRITE SHEET ANIMATION SYSTEM
    ========================================================= */
 
+/* Fallback size uses CSS vars if present so it won't blow up */
 .sprite{
   position:absolute;
   bottom: 0;
-  width: 320px;
-  height: 320px;
+  width: var(--w, 160px);
+  height: var(--h, 160px);
   image-rendering: pixelated;
   transform: translateZ(0);
   filter: drop-shadow(0 18px 18px rgba(0,0,0,.45));
+  z-index: 1; /* below nameplate */
 }
 
-/* Enemy faces LEFT (toward player) */
-.sprite-enemy{
-  right: 0;
-  transform: scaleX(-1);
-}
-
-/* Player faces RIGHT */
+/* Player anchors bottom-left in their box */
 .sprite-player{
   left: 0;
+}
+
+/* Enemy anchors bottom-right in their box (no flip here) */
+.sprite-enemy{
+  right: 0;
+  transform: none; /* important: wrapper handles flip */
+}
+
+/* Flip wrapper (add <div class="enemy-flip"> around #enemy-sprite in HTML) */
+.enemy-flip{
+  position:absolute;
+  right: 0;
+  bottom: 0;
+  transform: scaleX(-1);
+  z-index: 1;
 }
 
 /*
@@ -629,7 +642,7 @@ section p {
   to   { background-position: calc(var(--w) * var(--frames) * -1) 0; }
 }
 
-/* Small hit shake (NOTE: transform can conflict with sprite-enemy flip) */
+/* Small hit shake (safe: shake the sprite, flip is on wrapper) */
 .sprite.shake{
   animation: hitShake .18s linear 1;
 }
