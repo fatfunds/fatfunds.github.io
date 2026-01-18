@@ -177,22 +177,22 @@ function setBattleText(text) {
 const SPRITES = {
   player: {
     Warrior: {
-      idle:   { img: "assets/sprites/player/warrior_idle.png",  w: 64, h: 64, frames: 6, speed: ".7s" },
-      attack: { img: "assets/sprites/player/warrior_attack.png",w: 64, h: 64, frames: 6, speed: ".6s" },
-      hurt:   { img: "assets/sprites/player/warrior_hurt.png",  w: 64, h: 64, frames: 4, speed: ".3s" },
-      death:  { img: "assets/sprites/player/warrior_death.png", w: 64, h: 64, frames: 6, speed: ".9s" },
+      idle:   { img: "assets/warrior-idle.png",  w: 144, h: 96, frames: 16, speed: "1s" },
+      attack: { img: "assets/warrior-single swing 1.png",w: 144, h: 96, frames: 11, speed: "1s" },
+      hurt:   { img: "assets/warrior-hurt.png",  w: 144, h: 96, frames: 8, speed: "1s" },
+      death:  { img: "assets/warrior-death.png", w: 144, h: 96, frames: 19, speed: "1s" },
     },
     Cleric: {
-      idle:   { img: "assets/sprites/player/cleric_idle.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
-      attack: { img: "assets/sprites/player/cleric_attack.png", w: 64, h: 64, frames: 6, speed: ".6s" },
-      hurt:   { img: "assets/sprites/player/cleric_hurt.png",   w: 64, h: 64, frames: 4, speed: ".3s" },
-      death:  { img: "assets/sprites/player/cleric_death.png",  w: 64, h: 64, frames: 6, speed: ".9s" },
+      idle:   { img: "assets/cleric-idle.png",   w: 160, h: 160, frames: 18, speed: "1s" },
+      attack: { img: "assets/cleric-atk.png", w: 160, h: 160, frames: 36, speed: "1s" },
+      hurt:   { img: "assets/cleric-hurt.png",   w: 160, h: 160, frames: 9, speed: "1s" },
+      death:  { img: "assets/cleric-death.png",  w: 160, h: 160, frames: 19, speed: "1s" },
     },
     Wizard: {
-      idle:   { img: "assets/sprites/player/wizard_idle.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
-      attack: { img: "assets/sprites/player/wizard_attack.png", w: 64, h: 64, frames: 6, speed: ".6s" },
-      hurt:   { img: "assets/sprites/player/wizard_hurt.png",   w: 64, h: 64, frames: 4, speed: ".3s" },
-      death:  { img: "assets/sprites/player/wizard_death.png",  w: 64, h: 64, frames: 6, speed: ".9s" },
+      idle:   { img: "assets/old_wizard-idle.png",   w: 64, h: 64, frames: 6, speed: "1s" },
+      attack: { img: "assets/old_wizard-atk.png", w: 64, h: 64, frames: 6, speed: "1s" },
+      hurt:   { img: "assets/old_wizard-hurt.png",   w: 64, h: 64, frames: 4, speed: "1s" },
+      death:  { img: "assets/old_wizard-death.png",  w: 64, h: 64, frames: 6, speed: "1s" },
     },
     "Shambling Fool": {
       idle:   { img: "assets/sprites/player/fool_idle.png",     w: 64, h: 64, frames: 6, speed: ".7s" },
