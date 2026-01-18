@@ -12,11 +12,16 @@ function choice(arr) {
 }
 
 export const ENEMY_TEMPLATES = {
+  // existing
   "Goblin":       { base_hp: 14, base_ac: 12, to_hit: 3, damage: [1, 6] },
   "Bandit":       { base_hp: 16, base_ac: 13, to_hit: 4, damage: [2, 6] },
   "Skeleton":     { base_hp: 18, base_ac: 13, to_hit: 4, damage: [1, 8] },
   "Wolf":         { base_hp: 12, base_ac: 12, to_hit: 3, damage: [1, 6] },
   "Cult Acolyte": { base_hp: 15, base_ac: 12, to_hit: 4, damage: [2, 8] },
+
+  // NEW (matches your sprite filenames / types you want to show)
+  "Viper":        { base_hp: 13, base_ac: 13, to_hit: 4, damage: [1, 7] },
+  "Zombie":       { base_hp: 20, base_ac: 11, to_hit: 3, damage: [2, 8] },
 };
 
 export const TRAITS = [

@@ -173,65 +173,145 @@ function setBattleText(text) {
   setText("battle-text", text);
 }
 
-// ---------- Sprite sheet config ----------
-// Put your images in your repo, for example:
-// assets/sprites/player/warrior_idle.png
-// assets/sprites/player/warrior_attack.png
-// assets/sprites/enemies/goblin_idle.png
-// assets/sprites/enemies/goblin_attack.png
+// =========================================================
+// SPRITE SHEET CONFIG (UPDATED FOR YOUR FILES)
+// ---------------------------------------------------------
+// Your files appear to live in /Assets (capital A) like:
+// Assets/goblin-idle.png, Assets/goblin-atk.png, etc.
+// If your actual folder is different, update these paths.
+// =========================================================
+
+// IMPORTANT: You MUST set w/h/frames to match your sheets.
+// If unsure, set frames: 1 temporarily to confirm paths load.
 
 const SPRITES = {
   player: {
-    Warrior: { idle: "assets/sprites/player/warrior_idle.png", attack: "assets/sprites/player/warrior_attack.png", w: 64, h: 64, frames: 6, speed: ".7s" },
-    Cleric:  { idle: "assets/sprites/player/cleric_idle.png",  attack: "assets/sprites/player/cleric_attack.png",  w: 64, h: 64, frames: 6, speed: ".7s" },
-    Wizard:  { idle: "assets/sprites/player/wizard_idle.png",  attack: "assets/sprites/player/wizard_attack.png",  w: 64, h: 64, frames: 6, speed: ".7s" },
-    "Shambling Fool": { idle: "assets/sprites/player/fool_idle.png", attack: "assets/sprites/player/fool_attack.png", w: 64, h: 64, frames: 6, speed: ".7s" },
+    Warrior: {
+      idle:   { img: "assets/sprites/player/warrior_idle.png",  w: 64, h: 64, frames: 6, speed: ".7s" },
+      attack: { img: "assets/sprites/player/warrior_attack.png",w: 64, h: 64, frames: 6, speed: ".6s" },
+      hurt:   { img: "assets/sprites/player/warrior_hurt.png",  w: 64, h: 64, frames: 4, speed: ".3s" },
+      death:  { img: "assets/sprites/player/warrior_death.png", w: 64, h: 64, frames: 6, speed: ".9s" },
+    },
+    Cleric: {
+      idle:   { img: "assets/sprites/player/cleric_idle.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
+      attack: { img: "assets/sprites/player/cleric_attack.png", w: 64, h: 64, frames: 6, speed: ".6s" },
+      hurt:   { img: "assets/sprites/player/cleric_hurt.png",   w: 64, h: 64, frames: 4, speed: ".3s" },
+      death:  { img: "assets/sprites/player/cleric_death.png",  w: 64, h: 64, frames: 6, speed: ".9s" },
+    },
+    Wizard: {
+      idle:   { img: "assets/sprites/player/wizard_idle.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
+      attack: { img: "assets/sprites/player/wizard_attack.png", w: 64, h: 64, frames: 6, speed: ".6s" },
+      hurt:   { img: "assets/sprites/player/wizard_hurt.png",   w: 64, h: 64, frames: 4, speed: ".3s" },
+      death:  { img: "assets/sprites/player/wizard_death.png",  w: 64, h: 64, frames: 6, speed: ".9s" },
+    },
+    "Shambling Fool": {
+      idle:   { img: "assets/sprites/player/fool_idle.png",     w: 64, h: 64, frames: 6, speed: ".7s" },
+      attack: { img: "assets/sprites/player/fool_attack.png",   w: 64, h: 64, frames: 6, speed: ".6s" },
+      hurt:   { img: "assets/sprites/player/fool_hurt.png",     w: 64, h: 64, frames: 4, speed: ".3s" },
+      death:  { img: "assets/sprites/player/fool_death.png",    w: 64, h: 64, frames: 6, speed: ".9s" },
+    },
   },
+
   enemy: {
-    Goblin:   { idle: "assets/sprites/enemies/goblin_idle.png",   attack: "assets/sprites/enemies/goblin_attack.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
-    Bandit:   { idle: "assets/sprites/enemies/bandit_idle.png",   attack: "assets/sprites/enemies/bandit_attack.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
-    Skeleton: { idle: "assets/sprites/enemies/skeleton_idle.png", attack: "assets/sprites/enemies/skeleton_attack.png", w: 64, h: 64, frames: 6, speed: ".7s" },
-    Wolf:     { idle: "assets/sprites/enemies/wolf_idle.png",     attack: "assets/sprites/enemies/wolf_attack.png",     w: 64, h: 64, frames: 6, speed: ".7s" },
-    "Cult Acolyte": { idle: "assets/sprites/enemies/cult_idle.png", attack: "assets/sprites/enemies/cult_attack.png", w: 64, h: 64, frames: 6, speed: ".7s" },
+    Goblin: {
+      idle:   { img: "Assets/goblin-idle.png",  w: 64, h: 64, frames: 6, speed: ".7s" },
+      attack: { img: "Assets/goblin-atk1.png",  w: 64, h: 64, frames: 6, speed: ".6s" },
+      hurt:   { img: "Assets/goblin-hurt.png",  w: 64, h: 64, frames: 4, speed: ".3s" },
+      death:  { img: "Assets/goblin-death.png", w: 64, h: 64, frames: 6, speed: ".9s" },
+    },
+
+    "Cult Acolyte": {
+      idle:   { img: "Assets/cultist-idle.png",  w: 64, h: 64, frames: 6, speed: ".7s" },
+      attack: { img: "Assets/cultist-atk.png",   w: 64, h: 64, frames: 6, speed: ".6s" },
+      hurt:   { img: "Assets/cultist-hurt.png",  w: 64, h: 64, frames: 4, speed: ".3s" },
+      death:  { img: "Assets/cultist-death.png", w: 64, h: 64, frames: 6, speed: ".9s" },
+    },
+
+    Skeleton: {
+      idle:   { img: "Assets/skeleton-variation1-idle.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
+      attack: { img: "Assets/skeleton-variation1-attack.png", w: 64, h: 64, frames: 6, speed: ".6s" },
+      hurt:   { img: "Assets/skeleton-variation1-hurt.png",   w: 64, h: 64, frames: 4, speed: ".3s" },
+      death:  { img: "Assets/skeleton-variation1-death.png",  w: 64, h: 64, frames: 6, speed: ".9s" },
+    },
+
+    // Note: your enemy.js currently uses "Wolf", "Bandit" etc.
+    // If you want Viper/Zombie, you'll add them to your area/enemy templates.
+    Viper: {
+      idle:   { img: "Assets/viper-idle.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
+      attack: { img: "Assets/viper-attack.png", w: 64, h: 64, frames: 6, speed: ".6s" },
+      hurt:   { img: "Assets/viper-hurt.png",   w: 64, h: 64, frames: 4, speed: ".3s" },
+      death:  { img: "Assets/viper-death.png",  w: 64, h: 64, frames: 6, speed: ".9s" },
+    },
+
+    Zombie: {
+      idle:   { img: "Assets/zombie-idle.png",  w: 64, h: 64, frames: 6, speed: ".8s" },
+      attack: { img: "Assets/zombie-atk.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
+      hurt:   { img: "Assets/zombie-hurt.png",  w: 64, h: 64, frames: 4, speed: ".3s" },
+      death:  { img: "Assets/zombie-death.png", w: 64, h: 64, frames: 6, speed: "1s" },
+    },
   }
 };
 
-function applySheet(el, img, meta) {
-  if (!el) return;
-  el.style.backgroundImage = `url("${img}")`;
-  el.style.setProperty("--w", `${meta.w}px`);
-  el.style.setProperty("--h", `${meta.h}px`);
-  el.style.setProperty("--frames", String(meta.frames));
-  el.style.setProperty("--speed", meta.speed);
+function applySheet(el, anim) {
+  if (!el || !anim) return;
+  el.style.backgroundImage = `url("${anim.img}")`;
+  el.style.setProperty("--w", `${anim.w}px`);
+  el.style.setProperty("--h", `${anim.h}px`);
+  el.style.setProperty("--frames", String(anim.frames));
+  el.style.setProperty("--speed", anim.speed);
 }
+
+function getAnim(who, playerClass, enemyType, animName) {
+  if (who === "player") {
+    const set = SPRITES.player[playerClass] ?? SPRITES.player.Warrior;
+    return set[animName] ?? set.idle;
+  } else {
+    const set = SPRITES.enemy[enemyType] ?? SPRITES.enemy.Goblin;
+    return set[animName] ?? set.idle;
+  }
+}
+
+// Track timeouts so animations don’t fight each other
+const spriteTimers = { player: null, enemy: null };
+// Lock state (prevents returning to idle, used for death)
+const spriteLocked = { player: false, enemy: false };
 
 function setSpriteIdle(playerClass, enemyType) {
-  const pEl = $("player-sprite");
-  const eEl = $("enemy-sprite");
+  spriteLocked.player = false;
+  spriteLocked.enemy = false;
 
-  const pMeta = SPRITES.player[playerClass] ?? SPRITES.player.Warrior;
-  const eMeta = SPRITES.enemy[enemyType] ?? SPRITES.enemy.Goblin;
-
-  applySheet(pEl, pMeta.idle, pMeta);
-  applySheet(eEl, eMeta.idle, eMeta);
+  applySheet($("player-sprite"), getAnim("player", playerClass, enemyType, "idle"));
+  applySheet($("enemy-sprite"),  getAnim("enemy",  playerClass, enemyType, "idle"));
 }
 
-function playSpriteAttack(who, playerClass, enemyType) {
+function playSpriteAnim(who, animName, playerClass, enemyType, holdMs = 350, opts = {}) {
+  const { returnToIdle = true, lock = false } = opts;
+
   const el = who === "player" ? $("player-sprite") : $("enemy-sprite");
   if (!el) return;
 
-  const meta = who === "player"
-    ? (SPRITES.player[playerClass] ?? SPRITES.player.Warrior)
-    : (SPRITES.enemy[enemyType] ?? SPRITES.enemy.Goblin);
+  // if locked (dead), don't override
+  if (spriteLocked[who]) return;
 
-  const img = who === "player" ? meta.attack : meta.attack;
+  // cancel previous timer
+  if (spriteTimers[who]) window.clearTimeout(spriteTimers[who]);
 
-  applySheet(el, img, meta);
+  applySheet(el, getAnim(who, playerClass, enemyType, animName));
 
-  // Return to idle after a short delay
-  window.setTimeout(() => {
-    setSpriteIdle(playerClass, enemyType);
-  }, 450);
+  if (lock) {
+    spriteLocked[who] = true;
+    spriteTimers[who] = null;
+    return;
+  }
+
+  if (!returnToIdle) return;
+
+  spriteTimers[who] = window.setTimeout(() => {
+    if (spriteLocked[who]) return;
+
+    applySheet(el, getAnim(who, playerClass, enemyType, "idle"));
+    spriteTimers[who] = null;
+  }, holdMs);
 }
 
 // ---------- Combat flow ----------
@@ -240,7 +320,6 @@ let combatEnemyType = "Goblin";
 let combatPlayerClass = "Warrior";
 
 function beginCombatFromResolution(enemyObj) {
-  // enemyObj is your generated enemy payload (HP/AC/to_hit/etc)
   const state = game.getState();
   if (!state.player) return;
 
@@ -268,59 +347,90 @@ function beginCombatFromResolution(enemyObj) {
 }
 
 function endCombatAndReturnToStory(result) {
-  showBattleUI(false);
+  // result is CombatController._result() payload from Combat.js :contentReference[oaicite:1]{index=1}
 
   // Update side panel stats after combat
   const s = game.getState();
   renderPlayer(s.player);
 
+  // Flee
   if (result.winner === "fled") {
+    showBattleUI(false);
     addLog("You escaped!", true);
-    // After fleeing, just go next encounter
     const next = game.nextEncounter();
     renderEncounterPayload(next);
     combat = null;
     return;
   }
 
+  // Player victory → play enemy death, then close
   if (result.winner === "player") {
-    addLog("You won the fight!", true);
-    const next = game.nextEncounter();
-    renderEncounterPayload(next);
-    combat = null;
+    playSpriteAnim("enemy", "death", combatPlayerClass, combatEnemyType, 0, { lock: true, returnToIdle: false });
+    setBattleText(`${combat.enemy.name} falls!`);
+
+    window.setTimeout(() => {
+      showBattleUI(false);
+      addLog("You won the fight!", true);
+      const next = game.nextEncounter();
+      renderEncounterPayload(next);
+      combat = null;
+    }, 900);
+
     return;
   }
 
-  // enemy wins
-  addLog("☠ You were defeated. Type 'start' to try again.", true);
-  setChoicesVisible(false);
-  combat = null;
+  // Enemy victory → play player death, then close
+  playSpriteAnim("player", "death", combatPlayerClass, combatEnemyType, 0, { lock: true, returnToIdle: false });
+  setBattleText("You collapse...");
+
+  window.setTimeout(() => {
+    showBattleUI(false);
+    addLog("☠ You were defeated. Type 'start' to try again.", true);
+    setChoicesVisible(false);
+    combat = null;
+  }, 900);
 }
 
-// Convert combat log into text
+// Convert combat log into text + trigger hurt anims
 function printCombatLog(entries) {
   for (const e of entries) {
     if (e.type === "player_attack") {
       setBattleText(`You attack! ${e.hit ? `Hit for ${e.dmg}.` : "Miss!"}`);
       addLog(`You attack: d20=${e.roll} total=${e.total} ${e.hit ? `HIT (${e.dmg})` : "MISS"}`, true);
+
+      // Enemy hurt on hit
+      if (e.hit) playSpriteAnim("enemy", "hurt", combatPlayerClass, combatEnemyType, 260);
+
     } else if (e.type === "enemy_attack") {
       setBattleText(`${combat.enemy.name} attacks! ${e.hit ? `Hit for ${e.dmg}.` : "Miss!"}`);
       addLog(`Enemy attack: d20=${e.roll} total=${e.total} ${e.hit ? `HIT (${e.dmg})` : "MISS"}`, true);
+
+      // Player hurt on hit
+      if (e.hit) playSpriteAnim("player", "hurt", combatPlayerClass, combatEnemyType, 260);
+
     } else if (e.type === "player_defend") {
       setBattleText("You defend!");
       addLog(e.text, true);
+
     } else if (e.type === "player_spell") {
       setBattleText(`${e.spell}! ${e.hit ? `Deals ${e.dmg}.` : "Fails!"}`);
       addLog(`Spell ${e.spell}: ${e.hit ? `HIT (${e.dmg})` : "MISS"} (MP ${e.mpLeft})`, true);
+
+      // Enemy hurt on hit
+      if (e.hit) playSpriteAnim("enemy", "hurt", combatPlayerClass, combatEnemyType, 260);
+
     } else if (e.type === "player_item") {
       setBattleText(`You use a Potion (+${e.heal} HP).`);
       addLog(`Potion heals ${e.heal}.`, true);
+
     } else if (e.type === "player_flee") {
       setBattleText(e.success ? "You got away!" : "Can't escape!");
       addLog(`Flee: ${e.total} vs DC ${e.dc} → ${e.success ? "SUCCESS" : "FAIL"}`, true);
+
     } else if (e.type === "enemy_taunt") {
       setBattleText(e.text);
       addLog(e.text, true);
+
     } else if (e.type === "combat_end") {
       // handled elsewhere
     }
@@ -330,14 +440,11 @@ function printCombatLog(entries) {
 function runCombatAction(actionKey, arg = "") {
   if (!combat) return;
 
-  const before = combat.getPublicState();
-
-  // play attack animation immediately for feel
-  if (actionKey === "attack") playSpriteAttack("player", combatPlayerClass, combatEnemyType);
-  if (actionKey === "spell") playSpriteAttack("player", combatPlayerClass, combatEnemyType);
+  // feel: play player attack/spell immediately (before results)
+  if (actionKey === "attack") playSpriteAnim("player", "attack", combatPlayerClass, combatEnemyType, 350);
+  if (actionKey === "spell") playSpriteAnim("player", "attack", combatPlayerClass, combatEnemyType, 350);
 
   const result = combat.act(actionKey, arg);
-
   const after = result.state;
 
   // update bars
@@ -346,9 +453,9 @@ function runCombatAction(actionKey, arg = "") {
 
   printCombatLog(result.log);
 
-  // enemy attacked? play enemy attack anim if their turn produced an attack
+  // if enemy attacked in this step, play enemy attack anim
   if (result.log.some(x => x.type === "enemy_attack")) {
-    playSpriteAttack("enemy", combatPlayerClass, combatEnemyType);
+    playSpriteAnim("enemy", "attack", combatPlayerClass, combatEnemyType, 350);
   }
 
   if (result.ended) {
@@ -366,7 +473,6 @@ function handleCommand(raw) {
 
   // If in combat, route combat commands
   if (combat && combat.getPublicState().active) {
-    // allow: attack, defend, run, flee, item potion, spell fire
     if (lower === "attack") return runCombatAction("attack");
     if (lower === "defend") return runCombatAction("defend");
     if (lower === "run" || lower === "flee") return runCombatAction("flee");
