@@ -614,12 +614,10 @@ section p {
   z-index: 1;
 }
 
-/* Enemy sprite itself no longer flips */
-.sprite-enemy{
-  right: 0;
-  transform: none;
+/* enemy faces left */
+#enemy-sprite {
+  transform: scaleX(-1);
 }
-
 
 /*
   Sprite sheet animation:

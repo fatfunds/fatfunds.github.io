@@ -177,28 +177,28 @@ function setBattleText(text) {
 const SPRITES = {
   player: {
     Warrior: {
-      idle:   { img: "assets/warrior-idle.png",  w: 144, h: 96, frames: 16, speed: "1s" },
-      attack: { img: "assets/warrior-single swing 1.png",w: 144, h: 96, frames: 11, speed: "1s" },
-      hurt:   { img: "assets/warrior-hurt.png",  w: 144, h: 96, frames: 8, speed: "1s" },
-      death:  { img: "assets/warrior-death.png", w: 144, h: 96, frames: 19, speed: "1s" },
+      idle:   { img: "Assets/warrior-idle.png",  w: 144, h: 96, frames: 16, speed: "1s" },
+      attack: { img: "Assets/warrior-single swing 1.png",w: 144, h: 96, frames: 11, speed: "1s" },
+      hurt:   { img: "Assets/warrior-hurt.png",  w: 144, h: 96, frames: 8, speed: "1s" },
+      death:  { img: "Assets/warrior-death.png", w: 144, h: 96, frames: 19, speed: "1s" },
     },
     Cleric: {
-      idle:   { img: "assets/cleric-idle.png",   w: 160, h: 160, frames: 18, speed: "1s" },
-      attack: { img: "assets/cleric-atk.png", w: 160, h: 160, frames: 36, speed: "1s" },
-      hurt:   { img: "assets/cleric-hurt.png",   w: 160, h: 160, frames: 9, speed: "1s" },
-      death:  { img: "assets/cleric-death.png",  w: 160, h: 160, frames: 19, speed: "1s" },
+      idle:   { img: "Assets/cleric-idle.png",   w: 160, h: 160, frames: 18, speed: "1s" },
+      attack: { img: "Assets/cleric-atk.png", w: 160, h: 160, frames: 36, speed: "1s" },
+      hurt:   { img: "Assets/cleric-hurt.png",   w: 160, h: 160, frames: 9, speed: "1s" },
+      death:  { img: "Assets/cleric-death.png",  w: 160, h: 160, frames: 19, speed: "1s" },
     },
     Wizard: {
-      idle:   { img: "assets/old_wizard-idle.png",   w: 64, h: 64, frames: 6, speed: "1s" },
-      attack: { img: "assets/old_wizard-atk.png", w: 64, h: 64, frames: 6, speed: "1s" },
-      hurt:   { img: "assets/old_wizard-hurt.png",   w: 64, h: 64, frames: 4, speed: "1s" },
-      death:  { img: "assets/old_wizard-death.png",  w: 64, h: 64, frames: 6, speed: "1s" },
+      idle:   { img: "Assets/old_wizard-idle.png",   w: 64, h: 64, frames: 6, speed: "1s" },
+      attack: { img: "Assets/old_wizard-atk.png", w: 64, h: 64, frames: 6, speed: "1s" },
+      hurt:   { img: "Assets/old_wizard-hurt.png",   w: 64, h: 64, frames: 4, speed: "1s" },
+      death:  { img: "Assets/old_wizard-death.png",  w: 64, h: 64, frames: 6, speed: "1s" },
     },
     "Shambling Fool": {
-      idle:   { img: "assets/sprites/player/fool_idle.png",     w: 64, h: 64, frames: 6, speed: ".7s" },
-      attack: { img: "assets/sprites/player/fool_attack.png",   w: 64, h: 64, frames: 6, speed: ".6s" },
-      hurt:   { img: "assets/sprites/player/fool_hurt.png",     w: 64, h: 64, frames: 4, speed: ".3s" },
-      death:  { img: "assets/sprites/player/fool_death.png",    w: 64, h: 64, frames: 6, speed: ".9s" },
+      idle:   { img: "Assets/fool_idle.png",     w: 64, h: 64, frames: 6, speed: ".7s" },
+      attack: { img: "Assets/fool_attack.png",   w: 64, h: 64, frames: 6, speed: ".6s" },
+      hurt:   { img: "Assets/fool_hurt.png",     w: 64, h: 64, frames: 4, speed: ".3s" },
+      death:  { img: "Assets/fool_death.png",    w: 64, h: 64, frames: 6, speed: ".9s" },
     },
   },
 
@@ -230,6 +230,14 @@ const SPRITES = {
       attack: { img: "Assets/viper-attack.png", w: 96, h: 96, frames: 9, speed: "1s" },
       hurt:   { img: "Assets/viper-hurt.png",   w: 96, h: 96, frames: 6, speed: "1s" },
       death:  { img: "Assets/viper-death.png",  w: 96, h: 96, frames: 9, speed: "1s" },
+    },
+
+
+    Bandit: {
+      idle:   { img: "Assets/bandit-idle.png", w:128, h: 96, frames: 8, speed: "1s"},
+      attack: { img: "Assets/bandit-atk.png", w:128, h: 96, frames: 21, speed: "1s"},
+      hurt:   { img: "Assets/bandit-hurt.png", w:128, h:96, frames:11, speed: "1s"},
+      death:  { img: "Assets/bandit-death.png", w:128, h:96, frames:16, speed: "1s"},
     },
 
 
@@ -333,7 +341,7 @@ function beginCombatFromResolution(enemyObj) {
   setBattleText(`A wild ${enemyObj.type ?? "enemy"} appears!`);
   showBattleUI(true);
 
-  addLog(`⚔ Combat begins: ${pub.enemy.name}`, true);
+  addLog(`Combat begins: ${pub.enemy.name}`, true);
 }
 
 function endCombatAndReturnToStory(result) {
@@ -369,7 +377,7 @@ function endCombatAndReturnToStory(result) {
     return;
   }
 
-  // Enemy victory → play player death, then close
+  // Enemy victory -> play player death, then close
   playSpriteAnim("player", "death", combatPlayerClass, combatEnemyType, 0, { lock: true, returnToIdle: false });
   setBattleText("You collapse...");
 
