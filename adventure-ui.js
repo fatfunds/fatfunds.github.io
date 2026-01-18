@@ -69,13 +69,13 @@ function renderPlayer(p) {
 
 function renderLocation(area) {
   if (!area) {
-    setText("hud-area", "📍 —");
+    setText("hud-area", " —");
     setText("loc-name", "—");
     setText("loc-desc", "—");
     return;
   }
 
-  setText("hud-area", `📍 ${area.name}`);
+  setText("hud-area", ` ${area.name}`);
   setText("loc-name", area.name);
   setText("loc-desc", area.description);
 }
@@ -139,7 +139,7 @@ function renderResolutionPayload(payload) {
   }
 
   if (payload.runEnded) {
-    addLog("☠ Run ended. Click Start Run to play again.", true);
+    addLog("Run ended. Click Start Run to play again.", true);
     setChoicesVisible(false);
     return;
   }
@@ -173,16 +173,6 @@ function setBattleText(text) {
   setText("battle-text", text);
 }
 
-// =========================================================
-// SPRITE SHEET CONFIG (UPDATED FOR YOUR FILES)
-// ---------------------------------------------------------
-// Your files appear to live in /Assets (capital A) like:
-// Assets/goblin-idle.png, Assets/goblin-atk.png, etc.
-// If your actual folder is different, update these paths.
-// =========================================================
-
-// IMPORTANT: You MUST set w/h/frames to match your sheets.
-// If unsure, set frames: 1 temporarily to confirm paths load.
 
 const SPRITES = {
   player: {
@@ -221,17 +211,17 @@ const SPRITES = {
     },
 
     "Cult Acolyte": {
-      idle:   { img: "Assets/cultist-idle.png",  w: 64, h: 64, frames: 6, speed: ".7s" },
-      attack: { img: "Assets/cultist-atk.png",   w: 64, h: 64, frames: 6, speed: ".6s" },
-      hurt:   { img: "Assets/cultist-hurt.png",  w: 64, h: 64, frames: 4, speed: ".3s" },
-      death:  { img: "Assets/cultist-death.png", w: 64, h: 64, frames: 6, speed: ".9s" },
+      idle:   { img: "Assets/cultist-idle.png",  w: 220, h: 220, frames: 8, speed: "1s" },
+      attack: { img: "Assets/cultist-atk.png",   w: 220, h: 220, frames: 16, speed: "1s" },
+      hurt:   { img: "Assets/cultist-hurt.png",  w: 220, h: 220, frames: 8, speed: "1s" },
+      death:  { img: "Assets/cultist-death.png", w: 220, h: 220, frames: 13, speed: "1s" },
     },
 
     Skeleton: {
-      idle:   { img: "Assets/skeleton-variation1-idle.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
-      attack: { img: "Assets/skeleton-variation1-attack.png", w: 64, h: 64, frames: 6, speed: ".6s" },
-      hurt:   { img: "Assets/skeleton-variation1-hurt.png",   w: 64, h: 64, frames: 4, speed: ".3s" },
-      death:  { img: "Assets/skeleton-variation1-death.png",  w: 64, h: 64, frames: 6, speed: ".9s" },
+      idle:   { img: "Assets/skeleton-variation1-idle.png",   w: 128, h: 128, frames: 7, speed: "1s" },
+      attack: { img: "Assets/skeleton-variation1-attack.png", w: 128, h: 128, frames: 17, speed: "1s" },
+      hurt:   { img: "Assets/skeleton-variation1-hurt.png",   w: 128, h: 128, frames: 11, speed: "1s" },
+      death:  { img: "Assets/skeleton-variation1-death.png",  w: 128, h: 128, frames: 13, speed: "1s" },
     },
 
 
@@ -244,10 +234,10 @@ const SPRITES = {
 
 
     Zombie: {
-      idle:   { img: "Assets/zombie-idle.png",  w: 64, h: 64, frames: 6, speed: ".8s" },
-      attack: { img: "Assets/zombie-atk.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
-      hurt:   { img: "Assets/zombie-hurt.png",  w: 64, h: 64, frames: 4, speed: ".3s" },
-      death:  { img: "Assets/zombie-death.png", w: 64, h: 64, frames: 6, speed: "1s" },
+      idle:   { img: "Assets/zombie-idle.png",  w: 96, h: 96, frames: 8, speed: "1s" },
+      attack: { img: "Assets/zombie-atk.png",   w: 96, h: 96, frames: 18, speed: "1s" },
+      hurt:   { img: "Assets/zombie-hurt.png",  w: 96, h: 96, frames: 9, speed: "1s" },
+      death:  { img: "Assets/zombie-death.png", w: 96, h: 96, frames: 12, speed: "1s" },
     },
   }
 };
@@ -385,7 +375,7 @@ function endCombatAndReturnToStory(result) {
 
   window.setTimeout(() => {
     showBattleUI(false);
-    addLog("☠ You were defeated. Type 'start' to try again.", true);
+    addLog("You were defeated. Type 'start' to try again.", true);
     setChoicesVisible(false);
     combat = null;
   }, 900);
