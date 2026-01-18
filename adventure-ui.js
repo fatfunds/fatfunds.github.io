@@ -214,10 +214,10 @@ const SPRITES = {
 
   enemy: {
     Goblin: {
-      idle:   { img: "Assets/goblin-idle.png",  w: 64, h: 64, frames: 6, speed: ".7s" },
-      attack: { img: "Assets/goblin-atk1.png",  w: 64, h: 64, frames: 6, speed: ".6s" },
-      hurt:   { img: "Assets/goblin-hurt.png",  w: 64, h: 64, frames: 4, speed: ".3s" },
-      death:  { img: "Assets/goblin-death.png", w: 64, h: 64, frames: 6, speed: ".9s" },
+      idle:   { img: "Assets/goblin-idle.png",  w: 960, h: 128, frames: 6, speed: "1s" },
+      attack: { img: "Assets/goblin-atk1.png",  w: 1760, h: 128, frames: 11, speed: "1s" },
+      hurt:   { img: "Assets/goblin-hurt.png",  w: 1280, h: 128, frames: 8, speed: "1s" },
+      death:  { img: "Assets/goblin-death.png", w: 1600, h: 128, frames: 10, speed: "1s" },
     },
 
     "Cult Acolyte": {
@@ -234,13 +234,12 @@ const SPRITES = {
       death:  { img: "Assets/skeleton-variation1-death.png",  w: 64, h: 64, frames: 6, speed: ".9s" },
     },
 
-    // Note: your enemy.js currently uses "Wolf", "Bandit" etc.
-    // If you want Viper/Zombie, you'll add them to your area/enemy templates.
+
     Viper: {
-      idle:   { img: "Assets/viper-idle.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
-      attack: { img: "Assets/viper-attack.png", w: 64, h: 64, frames: 6, speed: ".6s" },
-      hurt:   { img: "Assets/viper-hurt.png",   w: 64, h: 64, frames: 4, speed: ".3s" },
-      death:  { img: "Assets/viper-death.png",  w: 64, h: 64, frames: 6, speed: ".9s" },
+      idle:   { img: "Assets/viper-idle.png",   w: 768, h: 96, frames: 8, speed: "1s" },
+      attack: { img: "Assets/viper-attack.png", w: 864, h: 96, frames: 9, speed: "1s" },
+      hurt:   { img: "Assets/viper-hurt.png",   w: 576, h: 96, frames: 6, speed: "1s" },
+      death:  { img: "Assets/viper-death.png",  w: 864, h: 96, frames: 9, speed: "1s" },
     },
 
     Zombie: {
