@@ -172,24 +172,31 @@
           <div class="battle-frame">
             <div class="battle-bg"></div>
 
-            <!-- Enemy side -->
-            <div class="battle-enemy">
-              <div class="nameplate">
-                <div class="name" id="enemy-name">Enemy</div>
-                <div class="hpbar"><div class="hpfill" id="enemy-hp"></div></div>
-              </div>
-              <div class="enemy-flip"></div>
-                <div class="sprite sheet sprite-enemy idle" id="enemy-sprite"></div>
+          <!-- Enemy side -->
+          <div class="battle-enemy">
+            <div class="nameplate">
+              <div class="name" id="enemy-name">Enemy</div>
+              <div class="hpbar"><div class="hpfill" id="enemy-hp"></div></div>
             </div>
 
-            <!-- Player side -->
+            <!-- WRAPPER that flips/shakes -->
+            <div class="enemy-flip" id="enemy-wrap">
+              <div class="sprite sheet sprite-enemy idle" id="enemy-sprite"></div>
+            </div>
+          </div>
+
+
             <div class="battle-player">
               <div class="nameplate">
                 <div class="name" id="player-name">Player</div>
                 <div class="hpbar"><div class="hpfill" id="player-hp"></div></div>
               </div>
-              <div class="sprite sheet sprite-player idle" id="player-sprite"></div>
+
+              <div id="player-wrap">
+                <div class="sprite sheet sprite-player idle" id="player-sprite"></div>
+              </div>
             </div>
+
 
             <!-- Bottom battle text -->
             <div class="battle-text" id="battle-text">A wild enemy appears!</div>

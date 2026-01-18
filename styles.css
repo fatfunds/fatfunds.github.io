@@ -614,10 +614,7 @@ section p {
   z-index: 1;
 }
 
-/* enemy faces left */
-#enemy-sprite {
-  transform: scaleX(-1);
-}
+
 
 /*
   Sprite sheet animation:
@@ -632,18 +629,23 @@ section p {
   height: var(--h);
   background-repeat: no-repeat;
   background-size: calc(var(--w) * var(--frames)) var(--h);
-  animation: sheetAnim steps(var(--frames)) var(--speed) infinite;
+
+  animation-name: sheetAnim;
+  animation-duration: var(--speed);
+  animation-timing-function: steps(var(--frames));
+  animation-iteration-count: infinite;
 }
+
 
 @keyframes sheetAnim{
   from { background-position: 0 0; }
   to   { background-position: calc(var(--w) * var(--frames) * -1) 0; }
 }
 
-/* Small hit shake (safe: shake the sprite, flip is on wrapper) */
 .sprite.shake{
   animation: hitShake .18s linear 1;
 }
+
 @keyframes hitShake{
   0%{ transform: translateX(0) }
   25%{ transform: translateX(-6px) }
