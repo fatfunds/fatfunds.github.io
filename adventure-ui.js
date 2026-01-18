@@ -173,6 +173,17 @@ function setBattleText(text) {
   setText("battle-text", text);
 }
 
+function setCombatButtonsEnabled(enabled) {
+  $("cmd-attack") && ($("cmd-attack").disabled = !enabled);
+  $("cmd-skill")  && ($("cmd-skill").disabled  = !enabled);
+  $("cmd-item")   && ($("cmd-item").disabled   = !enabled);
+  $("cmd-run")    && ($("cmd-run").disabled    = !enabled);
+}
+
+function anyAnimBusy() {
+  return spriteBusy.player || spriteBusy.enemy;
+}
+
 
 const SPRITES = {
   player: {
@@ -274,6 +285,23 @@ const spriteTimers = { player: null, enemy: null };
 // Lock state (prevents returning to idle, used for death)
 const spriteLocked = { player: false, enemy: false };
 
+// Hard lock while an animation is playing (prevents overlap)
+const spriteBusy = { player: false, enemy: false };
+
+function parseSpeedToMs(speed) {
+  // accepts "1s", ".6s", "0.25s"
+  const s = typeof speed === "string" ? speed.trim() : "1s";
+  const num = parseFloat(s);
+  if (!Number.isFinite(num)) return 350;
+  return Math.max(1, Math.round(num * 1000));
+}
+
+function animMs(who, playerClass, enemyType, animName) {
+  const anim = getAnim(who, playerClass, enemyType, animName);
+  return parseSpeedToMs(anim?.speed ?? "0.35s");
+}
+
+
 function setSpriteIdle(playerClass, enemyType) {
   spriteLocked.player = false;
   spriteLocked.enemy = false;
@@ -282,35 +310,48 @@ function setSpriteIdle(playerClass, enemyType) {
   applySheet($("enemy-sprite"),  getAnim("enemy",  playerClass, enemyType, "idle"));
 }
 
-function playSpriteAnim(who, animName, playerClass, enemyType, holdMs = 350, opts = {}) {
-  const { returnToIdle = true, lock = false } = opts;
+function playSpriteAnim(who, animName, playerClass, enemyType, _holdMsIgnored = 0, opts = {}) {
+  const { returnToIdle = true, lock = false, force = false } = opts;
 
   const el = who === "player" ? $("player-sprite") : $("enemy-sprite");
   if (!el) return;
 
-  // if locked (dead), don't override
-  if (spriteLocked[who]) return;
+  // if dead-locked, don't override
+  if (spriteLocked[who] && !force) return;
+
+  // if currently playing an animation, don't override (unless force)
+  if (spriteBusy[who] && !force) return;
 
   // cancel previous timer
   if (spriteTimers[who]) window.clearTimeout(spriteTimers[who]);
 
+  // apply the requested anim
   applySheet(el, getAnim(who, playerClass, enemyType, animName));
 
+  // death/perma lock: never return to idle
   if (lock) {
     spriteLocked[who] = true;
+    spriteBusy[who] = true;      // stays busy forever
     spriteTimers[who] = null;
     return;
   }
 
-  if (!returnToIdle) return;
+  // lock until the animation finishes (duration derived from anim.speed)
+  spriteBusy[who] = true;
+
+  const durationMs = animMs(who, playerClass, enemyType, animName);
 
   spriteTimers[who] = window.setTimeout(() => {
+    spriteBusy[who] = false;
+    spriteTimers[who] = null;
+
+    if (!returnToIdle) return;
     if (spriteLocked[who]) return;
 
     applySheet(el, getAnim(who, playerClass, enemyType, "idle"));
-    spriteTimers[who] = null;
-  }, holdMs);
+  }, durationMs);
 }
+
 
 // ---------- Combat flow ----------
 let combatMax = { playerHP: 1, enemyHP: 1 };
@@ -340,12 +381,15 @@ function beginCombatFromResolution(enemyObj) {
 
   setBattleText(`A wild ${enemyObj.type ?? "enemy"} appears!`);
   showBattleUI(true);
+  setCombatButtonsEnabled(true);
+
 
   addLog(`Combat begins: ${pub.enemy.name}`, true);
 }
 
 function endCombatAndReturnToStory(result) {
   // result is CombatController._result() payload from Combat.js :contentReference[oaicite:1]{index=1}
+  setCombatButtonsEnabled(false);
 
   // Update side panel stats after combat
   const s = game.getState();
@@ -361,7 +405,7 @@ function endCombatAndReturnToStory(result) {
     return;
   }
 
-  // Player victory → play enemy death, then close
+  // Player victory -> play enemy death, then close
   if (result.winner === "player") {
     playSpriteAnim("enemy", "death", combatPlayerClass, combatEnemyType, 0, { lock: true, returnToIdle: false });
     setBattleText(`${combat.enemy.name} falls!`);
@@ -435,31 +479,8 @@ function printCombatLog(entries) {
   }
 }
 
-function runCombatAction(actionKey, arg = "") {
-  if (!combat) return;
+setCombatButtonsEnabled(false);
 
-  // feel: play player attack/spell immediately (before results)
-  if (actionKey === "attack") playSpriteAnim("player", "attack", combatPlayerClass, combatEnemyType, 350);
-  if (actionKey === "spell") playSpriteAnim("player", "attack", combatPlayerClass, combatEnemyType, 350);
-
-  const result = combat.act(actionKey, arg);
-  const after = result.state;
-
-  // update bars
-  setHPBar("player-hp", after.player.HP, combatMax.playerHP);
-  setHPBar("enemy-hp", after.enemy.HP, combatMax.enemyHP);
-
-  printCombatLog(result.log);
-
-  // if enemy attacked in this step, play enemy attack anim
-  if (result.log.some(x => x.type === "enemy_attack")) {
-    playSpriteAnim("enemy", "attack", combatPlayerClass, combatEnemyType, 350);
-  }
-
-  if (result.ended) {
-    endCombatAndReturnToStory(result);
-  }
-}
 
 // ---------- Command handling ----------
 function handleCommand(raw) {

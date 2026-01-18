@@ -642,9 +642,6 @@ section p {
   to   { background-position: calc(var(--w) * var(--frames) * -1) 0; }
 }
 
-.sprite.shake{
-  animation: hitShake .18s linear 1;
-}
 
 @keyframes hitShake{
   0%{ transform: translateX(0) }
