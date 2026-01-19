@@ -18,7 +18,7 @@ function rollDamage([min, max]) {
 
 export class CombatController {
   constructor(playerRef, enemy) {
-    this.player = playerRef;
+    this.player = playerRef; // mutated directly
     this.enemy = enemy;
 
     this.turn = "player"; // "player" | "enemy"
@@ -39,6 +39,7 @@ export class CombatController {
       turn: this.turn,
       player: {
         name: this.player.name,
+        class: this.player.class,
         HP: this.player.HP,
         AC: this.player.AC,
         to_hit: this.player.to_hit,
@@ -58,9 +59,7 @@ export class CombatController {
         damage: this.enemy.damage,
         status: { ...(this.enemy.status ?? {}) },
       },
-      actions: this.turn === "player"
-        ? ["attack", "defend", "spell", "item", "flee"]
-        : [],
+      actions: this.turn === "player" ? ["attack", "defend", "spell", "item", "flee"] : [],
     };
   }
 
@@ -82,6 +81,7 @@ export class CombatController {
 
     if (this.ended) return this._result({ ok: true });
 
+    // enemy responds (single step)
     this.turn = "enemy";
     this._enemyTurn();
     if (!this.ended) this.turn = "player";
@@ -105,7 +105,12 @@ export class CombatController {
 
     this.log.push({
       type: "player_attack",
-      roll, total, hit, crit, fumble, dmg,
+      roll,
+      total,
+      hit,
+      crit,
+      fumble,
+      dmg,
       enemyHP: this.enemy.HP,
     });
 
@@ -120,13 +125,19 @@ export class CombatController {
   _playerSpell(spellName) {
     const mp = this.player.MP ?? 0;
     if (mp <= 0) {
+      // NOTE: your UI currently doesn't print this type, but it's fine to keep.
       this.log.push({ type: "player_spell_fail", text: "No MP left!" });
       return;
     }
 
     this.player.MP = mp - 1;
+
     const roll = d20();
-    let total, crit, fumble, hit, dmg = 0;
+    let total = 0;
+    let crit = false;
+    let fumble = false;
+    let hit = false;
+    let dmg = 0;
 
     if (spellName === "fire") {
       total = roll + (this.player.INT ?? 0) + 2;
@@ -143,20 +154,29 @@ export class CombatController {
     hit = !fumble && (crit || total >= this.enemy.AC);
 
     if (hit) {
-      dmg = spellName === "fire"
-        ? randInt(5, 12) + Math.floor((this.player.INT ?? 0) / 2)
-        : randInt(3, 8);
+      dmg =
+        spellName === "fire"
+          ? randInt(5, 12) + Math.floor((this.player.INT ?? 0) / 2)
+          : randInt(3, 8);
+
       if (crit) dmg += randInt(spellName === "fire" ? 3 : 2, spellName === "fire" ? 8 : 6);
+
       this.enemy.HP -= dmg;
+
       if (spellName === "ice") this.enemy.status.slowed = 2;
     }
 
     this.log.push({
       type: "player_spell",
       spell: spellName.charAt(0).toUpperCase() + spellName.slice(1),
-      roll, total, hit, crit, fumble, dmg,
+      roll,
+      total,
+      hit,
+      crit,
+      fumble,
+      dmg,
       enemyHP: this.enemy.HP,
-      mpLeft: this.player.MP
+      mpLeft: this.player.MP,
     });
 
     if (this.enemy.HP <= 0) this._end("player");
@@ -164,7 +184,7 @@ export class CombatController {
 
   _playerItem(itemName) {
     const inv = this.player.inventory ?? [];
-    const idx = inv.findIndex(x => x.toLowerCase() === itemName.toLowerCase());
+    const idx = inv.findIndex((x) => x.toLowerCase() === itemName.toLowerCase());
     if (idx === -1) {
       this.log.push({ type: "player_item_fail", text: `No item: ${itemName}` });
       return;
@@ -196,8 +216,9 @@ export class CombatController {
     if (this.ended) return;
 
     const slowed = this.enemy.status.slowed ?? 0;
-    let toHit = (this.enemy.to_hit ?? 0) + (slowed > 0 ? -2 : 0);
+    const toHit = (this.enemy.to_hit ?? 0) + (slowed > 0 ? -2 : 0);
 
+    // 20% chance to taunt instead of attacking
     if (Math.random() < 0.2) {
       this.log.push({ type: "enemy_taunt", text: `${this.enemy.name} snarls and circles…` });
       if (slowed > 0) this.enemy.status.slowed = slowed - 1;
@@ -225,7 +246,12 @@ export class CombatController {
 
     this.log.push({
       type: "enemy_attack",
-      roll, total, hit, crit, fumble, dmg,
+      roll,
+      total,
+      hit,
+      crit,
+      fumble,
+      dmg,
       playerHP: this.player.HP,
     });
 
@@ -249,66 +275,19 @@ export class CombatController {
     };
   }
 }
-function runCombatAction(actionKey, arg = "") {
-  if (!combat) return;
 
-  // Don't allow inputs while animations are playing
-  if (anyAnimBusy()) return;
+// Optional helper (not used by engine.js anymore, but you can keep it)
+export function runCombat(player, enemy) {
+  const combat = new CombatController(player, enemy);
 
-  // Also don't allow inputs if it's not the player's turn
-  const pub = combat.getPublicState();
-  if (!pub.active || pub.turn !== "player") return;
-
-  // Lock buttons immediately
-  setCombatButtonsEnabled(false);
-
-  // Play player animation immediately for feel
-  if (actionKey === "attack") playSpriteAnim("player", "attack", combatPlayerClass, combatEnemyType, 0);
-  if (actionKey === "spell")  playSpriteAnim("player", "attack", combatPlayerClass, combatEnemyType, 0);
-
-  const result = combat.act(actionKey, arg);
-  const after = result.state;
-
-  // update bars
-  setHPBar("player-hp", after.player.HP, combatMax.playerHP);
-  setHPBar("enemy-hp", after.enemy.HP, combatMax.enemyHP);
-
-  printCombatLog(result.log);
-
-  // If enemy attacked this step, play enemy attack anim
-  if (result.log.some(x => x.type === "enemy_attack")) {
-    playSpriteAnim("enemy", "attack", combatPlayerClass, combatEnemyType, 0);
+  while (!combat.ended) {
+    combat.act("attack");
+    // enemy turn is invoked inside act() automatically
   }
 
-  // If combat ended, let endCombat handle locks + transitions
-  if (result.ended) {
-    endCombatAndReturnToStory(result);
-    return;
-  }
-
-  // Figure out how long to lock inputs (based on anim durations)
-  let unlockMs = 250;
-
-  if (actionKey === "attack" || actionKey === "spell") {
-    unlockMs = Math.max(unlockMs, animMs("player", combatPlayerClass, combatEnemyType, "attack"));
-  }
-
-  if (result.log.some(x => x.type === "enemy_attack")) {
-    unlockMs = Math.max(unlockMs, animMs("enemy", combatPlayerClass, combatEnemyType, "attack"));
-  }
-
-  // Hurt animations (optional but makes lock feel consistent)
-  if (result.log.some(x => x.type === "player_attack" && x.hit)) {
-    unlockMs = Math.max(unlockMs, animMs("enemy", combatPlayerClass, combatEnemyType, "hurt"));
-  }
-  if (result.log.some(x => x.type === "enemy_attack" && x.hit)) {
-    unlockMs = Math.max(unlockMs, animMs("player", combatPlayerClass, combatEnemyType, "hurt"));
-  }
-
-  window.setTimeout(() => {
-    // only re-enable if still in combat and player's turn again
-    const s = combat?.getPublicState();
-    if (combat && s?.active && s.turn === "player") setCombatButtonsEnabled(true);
-  }, unlockMs);
+  return {
+    winnerName: combat.winner === "player" ? player.name : enemy.name,
+    fled: combat.winner === "fled",
+    turns: combat.log,
+  };
 }
-

@@ -1,14 +1,14 @@
 // =========================
 // FILE: engine.js
-// Browser-friendly engine (port of story_gen.py)
-// UI-agnostic: no DOM, no console printing
+// Browser-friendly engine (UI-agnostic)
+// IMPORTANT: This engine does NOT auto-run combat.
+// It only triggers combat and returns an enemy payload to the UI.
 // =========================
 
 import { makeCharacter, applyStatChanges } from "./Character.js";
 import { listAreas, getArea } from "./location.js";
 import { generateEncounter, generateChoices } from "./encounters.js";
 import { generateEnemy } from "./enemy.js";
-import { runCombat } from "./Combat.js";
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -16,10 +16,6 @@ function randInt(min, max) {
 
 function d20() {
   return randInt(1, 20);
-}
-
-function clamp(n, lo, hi) {
-  return Math.max(lo, Math.min(hi, n));
 }
 
 export class AdventureEngine {
@@ -39,26 +35,24 @@ export class AdventureEngine {
 
     this.difficulty = 0;
 
-    // Current encounter snapshot
     this.current = {
       area: null,
       encounter: null,
       choices: null,
-      lastResolution: null, // info from last choice/combat
-      pending: "idle",      // idle | awaiting_choice | resolved
+      lastResolution: null,
+      pending: "idle", // idle | awaiting_choice | resolved
     };
   }
 
   // ---------- Public API ----------
 
-  /**
-   * startRun({ nameInput, classChoice, areaKey })
-   */
   startRun({ nameInput = "", classChoice = 1, areaKey = "roads" } = {}) {
     this.player = makeCharacter(nameInput, classChoice);
 
-    // ensure status exists even if character.js changes
+    // ensure status exists even if Character.js changes
     this.player.status = this.player.status ?? {};
+    this.player.inventory = this.player.inventory ?? ["potion"];
+    this.player.MP = this.player.MP ?? 3;
 
     this.world.area_key = areaKey;
     this.world.rep = {};
@@ -66,7 +60,9 @@ export class AdventureEngine {
     this.world.encounters = 0;
 
     this.difficulty = 0;
+
     this.current.lastResolution = null;
+    this.current.pending = "idle";
 
     return this.nextEncounter();
   }
@@ -81,18 +77,14 @@ export class AdventureEngine {
     return this.nextEncounter();
   }
 
-  /**
-   * Generates a fresh encounter and two choices.
-   * Returns a renderable payload for UI.
-   */
   nextEncounter() {
     if (!this.player) throw new Error("No player. Call startRun() first.");
 
     this.tickStatuses();
 
     this.world.encounters += 1;
-    const area = getArea(this.world.area_key);
 
+    const area = getArea(this.world.area_key);
     const encounter = generateEncounter(area, this.world);
     const choices = generateChoices(area, encounter);
 
@@ -117,11 +109,6 @@ export class AdventureEngine {
     };
   }
 
-  /**
-   * pickChoice(1 or 2)
-   * Resolves the roll, stat changes, rep changes, possible combat.
-   * Returns a renderable payload for UI.
-   */
   pickChoice(choiceIndex) {
     if (!this.player) throw new Error("No player. Call startRun() first.");
     if (this.current.pending !== "awaiting_choice") {
@@ -136,7 +123,6 @@ export class AdventureEngine {
     const rollResult = this.rollCheck(this.player, picked.stat, picked.dc);
     const { roll, total, success, modUsed } = rollResult;
 
-    // Apply outcome + world effects (mirrors your Python)
     let triggerCombat = false;
     let repChange = null;
     let statusApplied = null;
@@ -146,28 +132,23 @@ export class AdventureEngine {
 
       triggerCombat = Math.random() < (encounter.combat_bias * 0.60);
 
-      // help the first "good" faction
       const friendly = area.factions[0];
       this.world.rep[friendly] = (this.world.rep[friendly] ?? 0) + 1;
       repChange = { faction: friendly, delta: +1 };
-
     } else {
       applyStatChanges(this.player, picked.fail);
 
       triggerCombat = Math.random() < Math.min(0.95, encounter.combat_bias + 0.25);
 
-      // hurt the last "bad" faction
       const hostile = area.factions[area.factions.length - 1];
       this.world.rep[hostile] = (this.world.rep[hostile] ?? 0) - 1;
       repChange = { faction: hostile, delta: -1 };
 
-      // wounded status (simple stack)
       this.player.status = this.player.status ?? {};
       this.player.status.wounded = (this.player.status.wounded ?? 0) + 1;
       statusApplied = { key: "wounded", newValue: this.player.status.wounded };
     }
 
-    // Prepare resolution payload
     const resolution = {
       type: "resolution",
       choice: {
@@ -186,44 +167,21 @@ export class AdventureEngine {
       repChange,
       statusApplied,
       playerAfter: this.publicPlayer(),
+
+      // Combat is now handled by the UI (interactive)
       triggerCombat,
       combat: null,
+
       runEnded: false,
     };
 
-    // Combat path
+    // If combat triggers, generate an enemy and return it to UI (DO NOT run turns here)
     if (triggerCombat) {
       const enemy = generateEnemy(this.player, this.difficulty, encounter.enemy_type);
-
-      const combatResult = runCombat(this.player, enemy);
-
-      // Scale difficulty if player wins
-      if (combatResult.winnerName === this.player.name) {
-        this.difficulty += 1;
-      } else {
-        resolution.runEnded = true;
-      }
-
-      // Attach combat payload
-      resolution.combat = {
-        enemy: { ...enemy, HP: Math.max(enemy.HP, 0) },
-        fled: combatResult.fled,
-        winnerName: combatResult.winnerName,
-        turns: combatResult.turns.map(t => ({
-          actor: t.actor,
-          d20: t.d20,
-          total: t.total,
-          hit: t.hit,
-          crit: t.crit,
-          fumble: t.fumble,
-          dmg: t.dmg,
-          playerHP: t.playerHP,
-          enemyHP: t.enemyHP,
-        })),
-      };
+      resolution.combat = { enemy };
     }
 
-    // Player death check (post-combat or no combat)
+    // If player died from stat effects (rare), end run
     if (this.player.HP <= 0) {
       resolution.runEnded = true;
     }
@@ -234,9 +192,16 @@ export class AdventureEngine {
     return resolution;
   }
 
-  /**
-   * Returns a snapshot state for UI at any time.
-   */
+  // Called by UI after winning a fight (so difficulty scales the same way as before)
+  onCombatWin() {
+    this.difficulty += 1;
+  }
+
+  // Optional: called by UI after losing a fight
+  onCombatLose() {
+    // you can set flags, etc. later if you want
+  }
+
   getState() {
     return {
       player: this.publicPlayer(),
@@ -252,7 +217,12 @@ export class AdventureEngine {
         area: this.current.area ? this.publicArea(this.current.area) : null,
         encounter: this.current.encounter ? { ...this.current.encounter } : null,
         choices: this.current.choices
-          ? this.current.choices.map((c, i) => ({ index: i + 1, text: c.text, stat: c.stat, dc: c.dc }))
+          ? this.current.choices.map((c, i) => ({
+              index: i + 1,
+              text: c.text,
+              stat: c.stat,
+              dc: c.dc,
+            }))
           : null,
         lastResolution: this.current.lastResolution,
       },
@@ -273,6 +243,7 @@ export class AdventureEngine {
       AC: this.player.AC,
       to_hit: this.player.to_hit,
       damage: this.player.damage,
+      MP: this.player.MP ?? 0,
       status: { ...(this.player.status ?? {}) },
       inventory: [...(this.player.inventory ?? [])],
     };
@@ -300,7 +271,6 @@ export class AdventureEngine {
     let roll = d20();
     let mod = character[stat] ?? 0;
 
-    // tiny status spice (match your Python)
     const status = character.status ?? {};
     if ((status.wounded ?? 0) > 0 && stat === "STR") {
       mod -= 1;
