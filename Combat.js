@@ -249,19 +249,66 @@ export class CombatController {
     };
   }
 }
-export function runCombat(player, enemy) {
-  const combat = new CombatController(player, enemy);
+function runCombatAction(actionKey, arg = "") {
+  if (!combat) return;
 
-  while (!combat.ended) {
-    combat.act("attack"); // player turn
-    if (!combat.ended) {
-      combat.act(""); // enemy turn is auto-invoked inside
-    }
+  // Don't allow inputs while animations are playing
+  if (anyAnimBusy()) return;
+
+  // Also don't allow inputs if it's not the player's turn
+  const pub = combat.getPublicState();
+  if (!pub.active || pub.turn !== "player") return;
+
+  // Lock buttons immediately
+  setCombatButtonsEnabled(false);
+
+  // Play player animation immediately for feel
+  if (actionKey === "attack") playSpriteAnim("player", "attack", combatPlayerClass, combatEnemyType, 0);
+  if (actionKey === "spell")  playSpriteAnim("player", "attack", combatPlayerClass, combatEnemyType, 0);
+
+  const result = combat.act(actionKey, arg);
+  const after = result.state;
+
+  // update bars
+  setHPBar("player-hp", after.player.HP, combatMax.playerHP);
+  setHPBar("enemy-hp", after.enemy.HP, combatMax.enemyHP);
+
+  printCombatLog(result.log);
+
+  // If enemy attacked this step, play enemy attack anim
+  if (result.log.some(x => x.type === "enemy_attack")) {
+    playSpriteAnim("enemy", "attack", combatPlayerClass, combatEnemyType, 0);
   }
 
-  return {
-    winnerName: combat.winner === "player" ? player.name : enemy.name,
-    fled: combat.winner === "fled",
-    turns: combat.log,
-  };
+  // If combat ended, let endCombat handle locks + transitions
+  if (result.ended) {
+    endCombatAndReturnToStory(result);
+    return;
+  }
+
+  // Figure out how long to lock inputs (based on anim durations)
+  let unlockMs = 250;
+
+  if (actionKey === "attack" || actionKey === "spell") {
+    unlockMs = Math.max(unlockMs, animMs("player", combatPlayerClass, combatEnemyType, "attack"));
+  }
+
+  if (result.log.some(x => x.type === "enemy_attack")) {
+    unlockMs = Math.max(unlockMs, animMs("enemy", combatPlayerClass, combatEnemyType, "attack"));
+  }
+
+  // Hurt animations (optional but makes lock feel consistent)
+  if (result.log.some(x => x.type === "player_attack" && x.hit)) {
+    unlockMs = Math.max(unlockMs, animMs("enemy", combatPlayerClass, combatEnemyType, "hurt"));
+  }
+  if (result.log.some(x => x.type === "enemy_attack" && x.hit)) {
+    unlockMs = Math.max(unlockMs, animMs("player", combatPlayerClass, combatEnemyType, "hurt"));
+  }
+
+  window.setTimeout(() => {
+    // only re-enable if still in combat and player's turn again
+    const s = combat?.getPublicState();
+    if (combat && s?.active && s.turn === "player") setCombatButtonsEnabled(true);
+  }, unlockMs);
 }
+
