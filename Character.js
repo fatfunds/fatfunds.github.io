@@ -5,7 +5,7 @@
 
 // ----- Data -----
 export const PREFIXES = ["Bel", "Ash", "Mor", "Ka", "El", "Yor", "Thal", "Ren", "Ruth", "Luk", "Jer","Tim", "Jo","Jam","Bil"];
-export const SUFFIXES = ["dor", "rin", "th", "mar", "ion", "vis", "ael", "en", "os", "rak","ith","mey","as","is"];
+export const SUFFIXES = ["dor", "rin", "th", "mar", "ion", "vis", "ael", "en", "os", "rak","ith","mey","as","is","bor"];
 
 export const CLASSES = {
   1: {

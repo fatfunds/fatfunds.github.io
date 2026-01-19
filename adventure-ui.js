@@ -64,7 +64,10 @@ function renderPlayer(p) {
   setText("s-cha", String(p.CHA));
 
   const statusKeys = Object.keys(p.status ?? {});
-  setText("s-status", statusKeys.length ? statusKeys.map(k => `${k}(${p.status[k]})`).join(", ") : "—");
+  setText(
+    "s-status",
+    statusKeys.length ? statusKeys.map(k => `${k}(${p.status[k]})`).join(", ") : "—"
+  );
 }
 
 function renderLocation(area) {
@@ -103,8 +106,8 @@ function renderChoices(choices) {
   if (b1) b1.textContent = `1) ${c1.text}  [${c1.stat} DC ${c1.dc}]`;
   if (b2) b2.textContent = `2) ${c2.text}  [${c2.stat} DC ${c2.dc}]`;
 
-  b1.dataset.choice = "1";
-  b2.dataset.choice = "2";
+  if (b1) b1.dataset.choice = "1";
+  if (b2) b2.dataset.choice = "2";
 }
 
 function renderEncounterPayload(payload) {
@@ -121,18 +124,28 @@ function renderEncounterPayload(payload) {
 function renderResolutionPayload(payload) {
   const r = payload.roll;
   addLog(`You chose: ${payload.choice.text}`, true);
-  addLog(`${payload.choice.stat} check: d20=${r.d20} + ${r.mod} = ${r.total} vs DC ${payload.choice.dc} → ${r.success ? "SUCCESS" : "FAIL"}`);
+  addLog(
+    `${payload.choice.stat} check: d20=${r.d20} + ${r.mod} = ${r.total} vs DC ${payload.choice.dc} → ${
+      r.success ? "SUCCESS" : "FAIL"
+    }`
+  );
   addLog(payload.message);
 
-  if (payload.repChange) addLog(`Reputation: ${payload.repChange.faction} ${payload.repChange.delta > 0 ? "+" : ""}${payload.repChange.delta}`, true);
-  if (payload.statusApplied) addLog(`Status: ${payload.statusApplied.key} now ${payload.statusApplied.newValue}`, true);
+  if (payload.repChange) {
+    addLog(
+      `Reputation: ${payload.repChange.faction} ${payload.repChange.delta > 0 ? "+" : ""}${payload.repChange.delta}`,
+      true
+    );
+  }
+  if (payload.statusApplied) {
+    addLog(`Status: ${payload.statusApplied.key} now ${payload.statusApplied.newValue}`, true);
+  }
 
   // Update stats after resolution
   const state = game.getState();
   renderPlayer(state.player);
 
   // If combat gets triggered, we DO NOT auto-next encounter.
-  // We open battle overlay and let the player fight first.
   if (payload.triggerCombat && payload.combat) {
     beginCombatFromResolution(payload.combat.enemy);
     return;
@@ -158,8 +171,8 @@ function showBattleUI(show) {
   panel.setAttribute("aria-hidden", show ? "false" : "true");
 
   // Optional: dim/lock the HUD input during combat
-  $("hud-input") && ($("hud-input").disabled = show);
-  $("hud-send") && ($("hud-send").disabled = show);
+  if ($("hud-input")) $("hud-input").disabled = show;
+  if ($("hud-send")) $("hud-send").disabled = show;
 }
 
 function setHPBar(fillId, current, max) {
@@ -174,42 +187,42 @@ function setBattleText(text) {
 }
 
 function setCombatButtonsEnabled(enabled) {
-  $("cmd-attack") && ($("cmd-attack").disabled = !enabled);
-  $("cmd-skill")  && ($("cmd-skill").disabled  = !enabled);
-  $("cmd-item")   && ($("cmd-item").disabled   = !enabled);
-  $("cmd-run")    && ($("cmd-run").disabled    = !enabled);
+  if ($("cmd-attack")) $("cmd-attack").disabled = !enabled;
+  if ($("cmd-skill"))  $("cmd-skill").disabled  = !enabled;
+  if ($("cmd-item"))   $("cmd-item").disabled   = !enabled;
+  if ($("cmd-run"))    $("cmd-run").disabled    = !enabled;
 }
 
 function anyAnimBusy() {
   return spriteBusy.player || spriteBusy.enemy;
 }
 
-
+// ---------- Sprite config ----------
 const SPRITES = {
   player: {
     Warrior: {
       idle:   { img: "Assets/warrior-idle.png",  w: 144, h: 96, frames: 16, speed: "1s" },
-      attack: { img: "Assets/warrior-single swing 1.png",w: 144, h: 96, frames: 11, speed: "1s" },
-      hurt:   { img: "Assets/warrior-hurt.png",  w: 144, h: 96, frames: 8, speed: "1s" },
+      attack: { img: "Assets/warrior-single swing 1.png", w: 144, h: 96, frames: 11, speed: "1s" },
+      hurt:   { img: "Assets/warrior-hurt.png",  w: 144, h: 96, frames: 8,  speed: "1s" },
       death:  { img: "Assets/warrior-death.png", w: 144, h: 96, frames: 19, speed: "1s" },
     },
     Cleric: {
-      idle:   { img: "Assets/cleric-idle.png",   w: 160, h: 160, frames: 18, speed: "1s" },
-      attack: { img: "Assets/cleric-atk.png", w: 160, h: 160, frames: 36, speed: "1s" },
-      hurt:   { img: "Assets/cleric-hurt.png",   w: 160, h: 160, frames: 9, speed: "1s" },
-      death:  { img: "Assets/cleric-death.png",  w: 160, h: 160, frames: 19, speed: "1s" },
+      idle:   { img: "Assets/cleric-idle.png",  w: 160, h: 160, frames: 18, speed: "1s" },
+      attack: { img: "Assets/cleric-atk.png",   w: 160, h: 160, frames: 36, speed: "1s" },
+      hurt:   { img: "Assets/cleric-hurt.png",  w: 160, h: 160, frames: 9,  speed: "1s" },
+      death:  { img: "Assets/cleric-death.png", w: 160, h: 160, frames: 19, speed: "1s" },
     },
     Wizard: {
-      idle:   { img: "Assets/old_wizard-idle.png",   w: 64, h: 64, frames: 6, speed: "1s" },
-      attack: { img: "Assets/old_wizard-atk.png", w: 64, h: 64, frames: 6, speed: "1s" },
-      hurt:   { img: "Assets/old_wizard-hurt.png",   w: 64, h: 64, frames: 4, speed: "1s" },
-      death:  { img: "Assets/old_wizard-death.png",  w: 64, h: 64, frames: 6, speed: "1s" },
+      idle:   { img: "Assets/old_wizard-idle.png",  w: 64, h: 64, frames: 6, speed: "1s" },
+      attack: { img: "Assets/old_wizard-atk.png",   w: 64, h: 64, frames: 6, speed: "1s" },
+      hurt:   { img: "Assets/old_wizard-hurt.png",  w: 64, h: 64, frames: 4, speed: "1s" },
+      death:  { img: "Assets/old_wizard-death.png", w: 64, h: 64, frames: 6, speed: "1s" },
     },
     "Shambling Fool": {
-      idle:   { img: "Assets/fool_idle.png",     w: 64, h: 64, frames: 6, speed: ".7s" },
-      attack: { img: "Assets/fool_attack.png",   w: 64, h: 64, frames: 6, speed: ".6s" },
-      hurt:   { img: "Assets/fool_hurt.png",     w: 64, h: 64, frames: 4, speed: ".3s" },
-      death:  { img: "Assets/fool_death.png",    w: 64, h: 64, frames: 6, speed: ".9s" },
+      idle:   { img: "Assets/fool_idle.png",   w: 64, h: 64, frames: 6, speed: ".7s" },
+      attack: { img: "Assets/fool_attack.png", w: 64, h: 64, frames: 6, speed: ".6s" },
+      hurt:   { img: "Assets/fool_hurt.png",   w: 64, h: 64, frames: 4, speed: ".3s" },
+      death:  { img: "Assets/fool_death.png",  w: 64, h: 64, frames: 6, speed: ".9s" },
     },
   },
 
@@ -220,42 +233,34 @@ const SPRITES = {
       hurt:   { img: "Assets/goblin-hurt.png",  w: 160, h: 128, frames: 8,  speed: "1s" },
       death:  { img: "Assets/goblin-death.png", w: 160, h: 128, frames: 10, speed: "1s" },
     },
-
     "Cult Acolyte": {
-      idle:   { img: "Assets/cultist-idle.png",  w: 220, h: 220, frames: 8, speed: "1s" },
+      idle:   { img: "Assets/cultist-idle.png",  w: 220, h: 220, frames: 8,  speed: "1s" },
       attack: { img: "Assets/cultist-atk.png",   w: 220, h: 220, frames: 16, speed: "1s" },
-      hurt:   { img: "Assets/cultist-hurt.png",  w: 220, h: 220, frames: 8, speed: "1s" },
+      hurt:   { img: "Assets/cultist-hurt.png",  w: 220, h: 220, frames: 8,  speed: "1s" },
       death:  { img: "Assets/cultist-death.png", w: 220, h: 220, frames: 13, speed: "1s" },
     },
-
     Skeleton: {
-      idle:   { img: "Assets/skeleton-variation1-idle.png",   w: 128, h: 128, frames: 7, speed: "1s" },
+      idle:   { img: "Assets/skeleton-variation1-idle.png",   w: 128, h: 128, frames: 7,  speed: "1s" },
       attack: { img: "Assets/skeleton-variation1-attack.png", w: 128, h: 128, frames: 17, speed: "1s" },
       hurt:   { img: "Assets/skeleton-variation1-hurt.png",   w: 128, h: 128, frames: 11, speed: "1s" },
       death:  { img: "Assets/skeleton-variation1-death.png",  w: 128, h: 128, frames: 13, speed: "1s" },
     },
-
-
     Viper: {
       idle:   { img: "Assets/viper-idle.png",   w: 96, h: 96, frames: 8, speed: "1s" },
       attack: { img: "Assets/viper-attack.png", w: 96, h: 96, frames: 9, speed: "1s" },
       hurt:   { img: "Assets/viper-hurt.png",   w: 96, h: 96, frames: 6, speed: "1s" },
       death:  { img: "Assets/viper-death.png",  w: 96, h: 96, frames: 9, speed: "1s" },
     },
-
-
     Bandit: {
-      idle:   { img: "Assets/bandit-idle.png", w:128, h: 96, frames: 8, speed: "1s"},
-      attack: { img: "Assets/bandit-atk.png", w:128, h: 96, frames: 21, speed: "1s"},
-      hurt:   { img: "Assets/bandit-hurt.png", w:128, h:96, frames:11, speed: "1s"},
-      death:  { img: "Assets/bandit-death.png", w:128, h:96, frames:16, speed: "1s"},
+      idle:   { img: "Assets/bandit-idle.png",  w: 128, h: 96, frames: 8,  speed: "1s" },
+      attack: { img: "Assets/bandit-atk.png",   w: 128, h: 96, frames: 21, speed: "1s" },
+      hurt:   { img: "Assets/bandit-hurt.png",  w: 128, h: 96, frames: 11, speed: "1s" },
+      death:  { img: "Assets/bandit-death.png", w: 128, h: 96, frames: 16, speed: "1s" },
     },
-
-
     Zombie: {
-      idle:   { img: "Assets/zombie-idle.png",  w: 96, h: 96, frames: 8, speed: "1s" },
+      idle:   { img: "Assets/zombie-idle.png",  w: 96, h: 96, frames: 8,  speed: "1s" },
       attack: { img: "Assets/zombie-atk.png",   w: 96, h: 96, frames: 18, speed: "1s" },
-      hurt:   { img: "Assets/zombie-hurt.png",  w: 96, h: 96, frames: 9, speed: "1s" },
+      hurt:   { img: "Assets/zombie-hurt.png",  w: 96, h: 96, frames: 9,  speed: "1s" },
       death:  { img: "Assets/zombie-death.png", w: 96, h: 96, frames: 12, speed: "1s" },
     },
   }
@@ -284,12 +289,10 @@ function getAnim(who, playerClass, enemyType, animName) {
 const spriteTimers = { player: null, enemy: null };
 // Lock state (prevents returning to idle, used for death)
 const spriteLocked = { player: false, enemy: false };
-
-// Hard lock while an animation is playing (prevents overlap)
+// Busy state (prevents overlapping anims)
 const spriteBusy = { player: false, enemy: false };
 
 function parseSpeedToMs(speed) {
-  // accepts "1s", ".6s", "0.25s"
   const s = typeof speed === "string" ? speed.trim() : "1s";
   const num = parseFloat(s);
   if (!Number.isFinite(num)) return 350;
@@ -300,7 +303,6 @@ function animMs(who, playerClass, enemyType, animName) {
   const anim = getAnim(who, playerClass, enemyType, animName);
   return parseSpeedToMs(anim?.speed ?? "0.35s");
 }
-
 
 function setSpriteIdle(playerClass, enemyType) {
   spriteLocked.player = false;
@@ -316,27 +318,20 @@ function playSpriteAnim(who, animName, playerClass, enemyType, _holdMsIgnored = 
   const el = who === "player" ? $("player-sprite") : $("enemy-sprite");
   if (!el) return;
 
-  // if dead-locked, don't override
   if (spriteLocked[who] && !force) return;
-
-  // if currently playing an animation, don't override (unless force)
   if (spriteBusy[who] && !force) return;
 
-  // cancel previous timer
   if (spriteTimers[who]) window.clearTimeout(spriteTimers[who]);
 
-  // apply the requested anim
   applySheet(el, getAnim(who, playerClass, enemyType, animName));
 
-  // death/perma lock: never return to idle
   if (lock) {
     spriteLocked[who] = true;
-    spriteBusy[who] = true;      // stays busy forever
+    spriteBusy[who] = true; // stays busy forever
     spriteTimers[who] = null;
     return;
   }
 
-  // lock until the animation finishes (duration derived from anim.speed)
   spriteBusy[who] = true;
 
   const durationMs = animMs(who, playerClass, enemyType, animName);
@@ -352,7 +347,6 @@ function playSpriteAnim(who, animName, playerClass, enemyType, _holdMsIgnored = 
   }, durationMs);
 }
 
-
 // ---------- Combat flow ----------
 let combatMax = { playerHP: 1, enemyHP: 1 };
 let combatEnemyType = "Goblin";
@@ -362,7 +356,7 @@ function beginCombatFromResolution(enemyObj) {
   const state = game.getState();
   if (!state.player) return;
 
-  combat = new CombatController(game.player ?? state.player, enemyObj); // playerRef (same object)
+  combat = new CombatController(game.player ?? state.player, enemyObj);
   const pub = combat.getPublicState();
 
   combatMax.playerHP = pub.player.HP;
@@ -383,19 +377,16 @@ function beginCombatFromResolution(enemyObj) {
   showBattleUI(true);
   setCombatButtonsEnabled(true);
 
-
   addLog(`Combat begins: ${pub.enemy.name}`, true);
 }
 
 function endCombatAndReturnToStory(result) {
-  // result is CombatController._result() payload from Combat.js :contentReference[oaicite:1]{index=1}
   setCombatButtonsEnabled(false);
 
   // Update side panel stats after combat
   const s = game.getState();
   renderPlayer(s.player);
 
-  // Flee
   if (result.winner === "fled") {
     showBattleUI(false);
     addLog("You escaped!", true);
@@ -405,7 +396,6 @@ function endCombatAndReturnToStory(result) {
     return;
   }
 
-  // Player victory -> play enemy death, then close
   if (result.winner === "player") {
     playSpriteAnim("enemy", "death", combatPlayerClass, combatEnemyType, 0, { lock: true, returnToIdle: false });
     setBattleText(`${combat.enemy.name} falls!`);
@@ -421,7 +411,6 @@ function endCombatAndReturnToStory(result) {
     return;
   }
 
-  // Enemy victory -> play player death, then close
   playSpriteAnim("player", "death", combatPlayerClass, combatEnemyType, 0, { lock: true, returnToIdle: false });
   setBattleText("You collapse...");
 
@@ -440,15 +429,13 @@ function printCombatLog(entries) {
       setBattleText(`You attack! ${e.hit ? `Hit for ${e.dmg}.` : "Miss!"}`);
       addLog(`You attack: d20=${e.roll} total=${e.total} ${e.hit ? `HIT (${e.dmg})` : "MISS"}`, true);
 
-      // Enemy hurt on hit
-      if (e.hit) playSpriteAnim("enemy", "hurt", combatPlayerClass, combatEnemyType, 260);
+      if (e.hit) playSpriteAnim("enemy", "hurt", combatPlayerClass, combatEnemyType, 0);
 
     } else if (e.type === "enemy_attack") {
       setBattleText(`${combat.enemy.name} attacks! ${e.hit ? `Hit for ${e.dmg}.` : "Miss!"}`);
       addLog(`Enemy attack: d20=${e.roll} total=${e.total} ${e.hit ? `HIT (${e.dmg})` : "MISS"}`, true);
 
-      // Player hurt on hit
-      if (e.hit) playSpriteAnim("player", "hurt", combatPlayerClass, combatEnemyType, 260);
+      if (e.hit) playSpriteAnim("player", "hurt", combatPlayerClass, combatEnemyType, 0);
 
     } else if (e.type === "player_defend") {
       setBattleText("You defend!");
@@ -458,8 +445,7 @@ function printCombatLog(entries) {
       setBattleText(`${e.spell}! ${e.hit ? `Deals ${e.dmg}.` : "Fails!"}`);
       addLog(`Spell ${e.spell}: ${e.hit ? `HIT (${e.dmg})` : "MISS"} (MP ${e.mpLeft})`, true);
 
-      // Enemy hurt on hit
-      if (e.hit) playSpriteAnim("enemy", "hurt", combatPlayerClass, combatEnemyType, 260);
+      if (e.hit) playSpriteAnim("enemy", "hurt", combatPlayerClass, combatEnemyType, 0);
 
     } else if (e.type === "player_item") {
       setBattleText(`You use a Potion (+${e.heal} HP).`);
@@ -479,8 +465,67 @@ function printCombatLog(entries) {
   }
 }
 
-setCombatButtonsEnabled(false);
+// ✅ MISSING BEFORE: this is what was breaking your combat inputs
+function runCombatAction(actionKey, arg = "") {
+  if (!combat) return;
 
+  // block spam while animations are in progress
+  if (anyAnimBusy()) return;
+
+  const pub = combat.getPublicState();
+  if (!pub.active) return;
+  if (pub.turn !== "player") return;
+
+  // lock buttons right away
+  setCombatButtonsEnabled(false);
+
+  // feel: play player anim immediately
+  if (actionKey === "attack") playSpriteAnim("player", "attack", combatPlayerClass, combatEnemyType, 0);
+  if (actionKey === "spell")  playSpriteAnim("player", "attack", combatPlayerClass, combatEnemyType, 0);
+
+  const result = combat.act(actionKey, arg);
+  const after = result.state;
+
+  // update bars
+  setHPBar("player-hp", after.player.HP, combatMax.playerHP);
+  setHPBar("enemy-hp", after.enemy.HP, combatMax.enemyHP);
+
+  printCombatLog(result.log);
+
+  // if enemy attacked in this step, play enemy attack anim
+  if (result.log.some(x => x.type === "enemy_attack")) {
+    playSpriteAnim("enemy", "attack", combatPlayerClass, combatEnemyType, 0);
+  }
+
+  if (result.ended) {
+    endCombatAndReturnToStory(result);
+    return;
+  }
+
+  // re-enable after animations finish (use longest relevant anim duration)
+  let unlockMs = 200;
+
+  if (actionKey === "attack" || actionKey === "spell") {
+    unlockMs = Math.max(unlockMs, animMs("player", combatPlayerClass, combatEnemyType, "attack"));
+  }
+  if (result.log.some(x => x.type === "enemy_attack")) {
+    unlockMs = Math.max(unlockMs, animMs("enemy", combatPlayerClass, combatEnemyType, "attack"));
+  }
+  if (result.log.some(x => x.type === "player_attack" && x.hit)) {
+    unlockMs = Math.max(unlockMs, animMs("enemy", combatPlayerClass, combatEnemyType, "hurt"));
+  }
+  if (result.log.some(x => x.type === "enemy_attack" && x.hit)) {
+    unlockMs = Math.max(unlockMs, animMs("player", combatPlayerClass, combatEnemyType, "hurt"));
+  }
+
+  window.setTimeout(() => {
+    const s = combat?.getPublicState();
+    if (combat && s?.active && s.turn === "player") setCombatButtonsEnabled(true);
+  }, unlockMs);
+}
+
+// Safe default (won’t do anything until DOM exists)
+setCombatButtonsEnabled(false);
 
 // ---------- Command handling ----------
 function handleCommand(raw) {
@@ -534,7 +579,10 @@ function handleCommand(raw) {
 
   if (lower === "stats") {
     const s = game.getState();
-    addLog(`Stats: HP ${s.player?.HP ?? "—"} | AC ${s.player?.AC ?? "—"} | STR ${s.player?.STR ?? "—"} | INT ${s.player?.INT ?? "—"} | CHA ${s.player?.CHA ?? "—"}`, true);
+    addLog(
+      `Stats: HP ${s.player?.HP ?? "—"} | AC ${s.player?.AC ?? "—"} | STR ${s.player?.STR ?? "—"} | INT ${s.player?.INT ?? "—"} | CHA ${s.player?.CHA ?? "—"}`,
+      true
+    );
     return;
   }
 
@@ -612,4 +660,5 @@ document.addEventListener("DOMContentLoaded", () => {
   renderLocation(null);
   setChoicesVisible(false);
   showBattleUI(false);
+  setCombatButtonsEnabled(false);
 });
