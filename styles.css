@@ -11,7 +11,7 @@ html, body {
 :root {
   --wrap: 1100px;
   --pad: 10%;
-  --spriteScale: 1.35; /* tweak: 1.25 / 1.4 / 1.5 */
+  --spriteScale: 1.5; /* tweak: 1.25 / 1.4 / 1.5 */
 }
 
 
@@ -517,44 +517,57 @@ section p {
 
 /* Nameplates */
 .nameplate{
-  position:absolute;
-  top: 0;
+  position: absolute;
+  top: -70px;               
   left: 0;
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
   background: rgba(15,15,18,.55);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255,255,255,.12);
-  width: min(280px, 70%);
+  width: min(260px, 70%);
   z-index: 3;
+  opacity: .85;            
+  transition: opacity .2s ease;
 }
 
 .battle-enemy .nameplate{
   left: auto;
-  right: 0;
+  right: -12px;
   text-align: left;
 }
 
 .nameplate .name{
   font-weight: 700;
-  letter-spacing: .2px;
-  margin-bottom: 8px;
+  letter-spacing: .3px;
+  margin-bottom: 6px;
 }
-
 .hpbar{
-  height: 10px;
+  height: 6px;
   border-radius: 999px;
-  background: rgba(255,255,255,.12);
-  overflow:hidden;
+  background: rgba(255,255,255,.10);
+  overflow: hidden;
 }
 
 .hpfill{
   height: 100%;
   width: 100%;
-  background: linear-gradient(90deg, rgba(62,255,150,.95), rgba(210,255,120,.95));
+  border-radius: inherit;
   transform-origin: left center;
-  transition: width .2s ease;
+  transition: width .25s ease, background-color .2s ease;
+  background: #4dff88; /* default (green) */
 }
+
+/* Full-solid colors by HP bucket */
+.hpfill.hp-good { background: #4dff88; }  /* >= 60% */
+.hpfill.hp-warn { background: #ffe066; }  /* 30% - 59% */
+.hpfill.hp-bad  { background: #ff3b3b; }  /* < 30% */
+
+/* Optional: subtle danger glow */
+.hpfill.hp-bad{
+  box-shadow: 0 0 10px rgba(255, 70, 70, .35);
+}
+
 
 /* Text box */
 .battle-text{
@@ -654,24 +667,60 @@ section p {
   animation: hitShake .18s linear 1;
 }
 
-/* Floating combat text (MISS / damage numbers later) */
 .floating-text{
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(var(--h, 160px) + 6px); /* above sprite head */
+  bottom: calc(var(--h, 160px) + 6px);
   font-weight: 900;
   letter-spacing: 1px;
   pointer-events: none;
   user-select: none;
   z-index: 5;
   text-shadow: 0 3px 10px rgba(0,0,0,.75);
-  animation: floatUp .9s ease-out forwards;
 }
+
 
 .floating-text.miss{
   opacity: .9;
+  color: #cfcfcf;
+  letter-spacing: 2px;
+  animation:
+    missShake .25s ease-in-out,
+    floatUp .9s ease-out forwards;
 }
+
+
+@keyframes missShake {
+  0%   { transform: translate(-50%, 0) translateX(0); }
+  25%  { transform: translate(-50%, 0) translateX(-7px); }
+  50%  { transform: translate(-50%, 0) translateX(7px); }
+  75%  { transform: translate(-50%, 0) translateX(-4px); }
+  100% { transform: translate(-50%, 0) translateX(0); }
+}
+
+.floating-text.dmg{
+  color: #ff4d4d;
+  font-size: 20px;
+}
+
+.floating-text.crit{
+  color: gold;
+  font-size: 24px;
+  text-shadow: 0 0 14px rgba(255,215,0,.9);
+  animation:
+    critPop .30s ease-out,
+    floatUp .9s ease-out forwards;
+}
+
+@keyframes critPop{
+  0%   { transform: translate(-50%, 0) scale(.6); }
+  60%  { transform: translate(-50%, 0) scale(1.4); }
+  100% { transform: translate(-50%, 0) scale(1); }
+}
+
+
+
 
 @keyframes floatUp{
   0%   { transform: translate(-50%, 0); opacity: 0; }

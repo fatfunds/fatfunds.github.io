@@ -178,9 +178,15 @@ function showBattleUI(show) {
 function setHPBar(fillId, current, max) {
   const el = $(fillId);
   if (!el) return;
+
   const pct = max <= 0 ? 0 : clamp01(current / max);
   el.style.width = `${Math.round(pct * 100)}%`;
+  el.classList.remove("hp-good", "hp-warn", "hp-bad");
+  if (pct >= 0.60) el.classList.add("hp-good");
+  else if (pct >= 0.30) el.classList.add("hp-warn");
+  else el.classList.add("hp-bad");
 }
+
 
 function setBattleText(text) {
   setText("battle-text", text);
@@ -220,7 +226,7 @@ const SPRITES = {
       death: { img: "Assets/warrior-death.png", w: 144, h: 96, frames: 19, speed: "1s" },
     },
     Cleric: {
-      idle: { img: "Assets/cleric-idle.png", w: 160, h: 160, frames: 18, speed: "1s" },
+      idle: { img: "Assets/cleric-idle.png", w: 160, h: 160, frames: 13, speed: "1s" },
       attack: { img: "Assets/cleric-atk.png", w: 160, h: 160, frames: 36, speed: "1s" },
       hurt: { img: "Assets/cleric-hurt.png", w: 160, h: 160, frames: 9, speed: "1s" },
       death: { img: "Assets/cleric-death.png", w: 160, h: 160, frames: 19, speed: "1s" },
