@@ -11,7 +11,9 @@ html, body {
 :root {
   --wrap: 1100px;
   --pad: 10%;
+  --spriteScale: 1.35; /* tweak: 1.25 / 1.4 / 1.5 */
 }
+
 
 .wrap {
   width: min(var(--wrap), 100% - 2rem);
@@ -41,9 +43,7 @@ a { color: inherit; }
   letter-spacing: 0.2px;
 }
 
-.topnav a:hover {
-  opacity: 1;
-}
+.topnav a:hover { opacity: 1; }
 
 /* ===== HERO ===== */
 .hero {
@@ -141,15 +141,8 @@ a { color: inherit; }
   border-top: 2px solid rgba(255, 255, 255, 0.05);
 }
 
-.dark-bg {
-  background: #1a1a1a;
-  color: #f2f2f2;
-}
-
-.light-bg {
-  background: #e7e7e7;
-  color: #111;
-}
+.dark-bg { background: #1a1a1a; color: #f2f2f2; }
+.light-bg { background: #e7e7e7; color: #111; }
 
 section h2 {
   font-size: clamp(2rem, 3vw, 2.6rem);
@@ -183,10 +176,7 @@ section p {
   outline: none;
 }
 
-.project-card.show {
-  opacity: 1;
-  transform: none;
-}
+.project-card.show { opacity: 1; transform: none; }
 
 .project-media {
   width: 100%;
@@ -213,9 +203,7 @@ section p {
 }
 
 .project-card:hover .project-overlay,
-.project-card.open .project-overlay {
-  opacity: 1;
-}
+.project-card.open .project-overlay { opacity: 1; }
 
 .project-overlay h3 {
   margin-bottom: 8px;
@@ -501,9 +489,7 @@ section p {
   right: 9%;
   width: 42%;
   height: 48%;
-  /* reserve space for nameplate so sprite can't go under it */
   padding-top: 62px;
-  box-sizing: border-box;
 }
 .battle-player{
   position:absolute;
@@ -512,7 +498,6 @@ section p {
   width: 48%;
   height: 52%;
   padding-top: 62px;
-  box-sizing: border-box;
 }
 
 /* Ground shadows */
@@ -541,7 +526,7 @@ section p {
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255,255,255,.12);
   width: min(280px, 70%);
-  z-index: 3; /* always above sprite */
+  z-index: 3;
 }
 
 .battle-enemy .nameplate{
@@ -555,12 +540,14 @@ section p {
   letter-spacing: .2px;
   margin-bottom: 8px;
 }
+
 .hpbar{
   height: 10px;
   border-radius: 999px;
   background: rgba(255,255,255,.12);
   overflow:hidden;
 }
+
 .hpfill{
   height: 100%;
   width: 100%;
@@ -586,10 +573,10 @@ section p {
 }
 
 /* =========================================================
-   SPRITE SHEET ANIMATION SYSTEM
+   SPRITE SHEET ANIMATION SYSTEM (FIXED: split flip vs shake)
    ========================================================= */
 
-/* Fallback size uses CSS vars if present so it won't blow up */
+/* Sprite itself ONLY animates sheet frames */
 .sprite{
   position:absolute;
   bottom: 0;
@@ -597,45 +584,54 @@ section p {
   height: var(--h, 160px);
   image-rendering: pixelated;
   filter: drop-shadow(0 18px 18px rgba(0,0,0,.45));
-  z-index: 1; /* below nameplate */
+  z-index: 1;
 }
 
-/* Player anchors bottom-left in their box */
-.sprite-player{
+/* Player anchors bottom-left inside wrapper */
+.sprite-player{ left: 0; }
+
+:root{
+  --spriteScale: 1.35; /* tweak: 1.25 / 1.4 / 1.5 */
+}
+
+.player-flip{
+  position: absolute;
   left: 0;
+  bottom: 0;
+  transform: scale(var(--spriteScale));
+  transform-origin: bottom left;
 }
 
-/* Flip wrapper: enemy faces left */
 .enemy-flip{
   position: absolute;
   right: 0;
   bottom: 0;
-  transform: scaleX(-1);
+  transform: scaleX(-1) scale(var(--spriteScale));
+  transform-origin: bottom right;
   z-index: 1;
 }
 
+/* ---- SHAKE WRAPPERS (shake ONLY) ---- */
+#player-wrap,
+#enemy-wrap{
+  position: absolute;
+  bottom: 0;
+  z-index: 1;
+  left: 0;
+}
 
-
-/*
-  Sprite sheet animation:
-  - set on element:
-    --w: frame width (e.g. 96px)
-    --h: frame height (e.g. 96px)
-    --frames: number of frames
-    --speed: duration (e.g. .8s)
-*/
 .sprite.sheet{
   width: var(--w);
   height: var(--h);
   background-repeat: no-repeat;
-  background-size: calc(var(--w) * var(--frames)) var(--h);
 
-  animation-name: sheetAnim;
-  animation-duration: var(--speed);
-  animation-timing-function: steps(var(--frames));
-  animation-iteration-count: infinite;
+  /* Use actual PNG size if JS provided it */
+  background-size: var(--sheetW, calc(var(--w) * var(--frames)))
+                   var(--sheetH, var(--h));
+
+  /* IMPORTANT: JS controls animation */
+  animation: none;
 }
-
 
 @keyframes sheetAnim{
   from { background-position: 0 0; }
@@ -643,13 +639,46 @@ section p {
 }
 
 
+
 @keyframes hitShake{
-  0%{ transform: translateX(0) }
-  25%{ transform: translateX(-6px) }
-  50%{ transform: translateX(6px) }
-  75%{ transform: translateX(-3px) }
-  100%{ transform: translateX(0) }
+  0%{ left: 0 }
+  25%{ left: -6px }
+  50%{ left: 6px }
+  75%{ left: -3px }
+  100%{ left: 0 }
 }
+
+
+#player-wrap.shake,
+#enemy-wrap.shake{
+  animation: hitShake .18s linear 1;
+}
+
+/* Floating combat text (MISS / damage numbers later) */
+.floating-text{
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--h, 160px) + 6px); /* above sprite head */
+  font-weight: 900;
+  letter-spacing: 1px;
+  pointer-events: none;
+  user-select: none;
+  z-index: 5;
+  text-shadow: 0 3px 10px rgba(0,0,0,.75);
+  animation: floatUp .9s ease-out forwards;
+}
+
+.floating-text.miss{
+  opacity: .9;
+}
+
+@keyframes floatUp{
+  0%   { transform: translate(-50%, 0); opacity: 0; }
+  15%  { opacity: 1; }
+  100% { transform: translate(-50%, -26px); opacity: 0; }
+}
+
 
 /* Screen-reader only label */
 .sr-only{

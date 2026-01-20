@@ -179,23 +179,36 @@
               <div class="hpbar"><div class="hpfill" id="enemy-hp"></div></div>
             </div>
 
-            <!-- WRAPPER that flips/shakes -->
-            <div class="enemy-flip" id="enemy-wrap">
-              <div class="sprite sheet sprite-enemy idle" id="enemy-sprite"></div>
+            <!-- flip wrapper (flip ONLY) -->
+            <div class="enemy-flip">
+              <!-- shake wrapper (shake ONLY) -->
+              <div id="enemy-wrap">
+                <div class="sprite sheet sprite-enemy idle" id="enemy-sprite"></div>
+              </div>
             </div>
           </div>
 
 
-            <div class="battle-player">
-              <div class="nameplate">
-                <div class="name" id="player-name">Player</div>
-                <div class="hpbar"><div class="hpfill" id="player-hp"></div></div>
-              </div>
+          
 
+
+
+          <!-- Player side -->
+          <div class="battle-player">
+            <div class="nameplate">
+              <div class="name" id="player-name">Player</div>
+              <div class="hpbar"><div class="hpfill" id="player-hp"></div></div>
+            </div>
+
+            <!-- flip wrapper (flip ONLY) -->
+            <div class="player-flip" id="player-flip">
+              <!-- shake wrapper (shake ONLY) -->
               <div id="player-wrap">
                 <div class="sprite sheet sprite-player idle" id="player-sprite"></div>
               </div>
             </div>
+          </div>
+
 
 
             <!-- Bottom battle text -->

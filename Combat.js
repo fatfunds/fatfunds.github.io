@@ -63,7 +63,14 @@ export class CombatController {
     };
   }
 
-  act(actionKey, arg = "") {
+  // ------------------------------------------------------------
+  // NEW FLOW:
+  // - actPlayer() performs ONLY the player action and sets turn="enemy"
+  // - actEnemy() performs ONLY the enemy response and sets turn="player"
+  // UI controls timing between them.
+  // ------------------------------------------------------------
+
+  actPlayer(actionKey, arg = "") {
     this.log = [];
 
     if (this.ended) return this._result({ ok: false, error: "Combat already ended." });
@@ -79,14 +86,36 @@ export class CombatController {
     else if (a === "flee") this._playerFlee();
     else return this._result({ ok: false, error: `Unknown combat action: ${actionKey}` });
 
+    // If player ended combat (killed enemy or fled)
     if (this.ended) return this._result({ ok: true });
 
-    // enemy responds (single step)
+    // Hand control to enemy, but DO NOT run it yet
     this.turn = "enemy";
+    return this._result({ ok: true });
+  }
+
+  actEnemy() {
+    this.log = [];
+
+    if (this.ended) return this._result({ ok: false, error: "Combat already ended." });
+    if (this.turn !== "enemy") return this._result({ ok: false, error: "Not enemy turn." });
+
     this._enemyTurn();
     if (!this.ended) this.turn = "player";
 
     return this._result({ ok: true });
+  }
+
+  // Backwards compatible wrapper (instant enemy). You can delete later.
+  act(actionKey, arg = "") {
+    const r1 = this.actPlayer(actionKey, arg);
+    if (!r1.ok || r1.ended) return r1;
+
+    const r2 = this.actEnemy();
+    return {
+      ...r2,
+      log: [...r1.log, ...r2.log],
+    };
   }
 
   _playerAttack() {
@@ -125,7 +154,6 @@ export class CombatController {
   _playerSpell(spellName) {
     const mp = this.player.MP ?? 0;
     if (mp <= 0) {
-      // NOTE: your UI currently doesn't print this type, but it's fine to keep.
       this.log.push({ type: "player_spell_fail", text: "No MP left!" });
       return;
     }
@@ -276,13 +304,12 @@ export class CombatController {
   }
 }
 
-// Optional helper (not used by engine.js anymore, but you can keep it)
+// Optional helper (kept)
 export function runCombat(player, enemy) {
   const combat = new CombatController(player, enemy);
 
   while (!combat.ended) {
     combat.act("attack");
-    // enemy turn is invoked inside act() automatically
   }
 
   return {
