@@ -164,90 +164,88 @@
     </header>
 
     <div class="hud-grid">
-      <!-- LEFT: Story / Input -->
-      <div class="hud-main">
+    <!-- LEFT: Story / Input -->
+    <div class="hud-main">
 
-        <!-- BATTLE PANEL (INLINE) -->
-        <div class="battle-panel hidden" id="battle-panel" aria-hidden="true">
-          <div class="battle-frame">
-            <div class="battle-bg"></div>
+      <!-- BATTLE PANEL (INLINE) -->
+      <div class="battle-panel hidden" id="battle-panel" aria-hidden="true">
+        <div class="battle-frame">
+          <div class="battle-bg"></div>
 
           <!-- Enemy side -->
           <div class="battle-enemy">
             <div class="nameplate">
               <div class="name" id="enemy-name">Enemy</div>
               <div class="hpbar"><div class="hpfill" id="enemy-hp"></div></div>
+              <div class="status-row" id="enemy-status-row" aria-label="Enemy status effects"></div>
             </div>
 
-            <!-- flip wrapper (flip ONLY) -->
             <div class="enemy-flip">
-              <!-- shake wrapper (shake ONLY) -->
               <div id="enemy-wrap">
                 <div class="sprite sheet sprite-enemy idle" id="enemy-sprite"></div>
               </div>
             </div>
           </div>
 
-
-          
-
-
-
           <!-- Player side -->
           <div class="battle-player">
             <div class="nameplate">
               <div class="name" id="player-name">Player</div>
               <div class="hpbar"><div class="hpfill" id="player-hp"></div></div>
+              <div class="status-row" id="player-status-row" aria-label="Player status effects"></div>
             </div>
 
-            <!-- flip wrapper (flip ONLY) -->
             <div class="player-flip" id="player-flip">
-              <!-- shake wrapper (shake ONLY) -->
               <div id="player-wrap">
                 <div class="sprite sheet sprite-player idle" id="player-sprite"></div>
               </div>
             </div>
           </div>
 
-
-
-            <!-- Bottom battle text -->
-            <div class="battle-text" id="battle-text">A wild enemy appears!</div>
-          </div>
-
-          <!-- Battle command row -->
-          <div class="battle-cmd">
-            <button class="mini-btn" id="cmd-attack" type="button">Attack</button>
-            <button class="mini-btn" id="cmd-skill" type="button">Skill</button>
-            <button class="mini-btn" id="cmd-item" type="button">Item</button>
-            <button class="mini-btn ghost" id="cmd-run" type="button">Run</button>
-          </div>
+          <!-- Bottom battle text -->
+          <div class="battle-text" id="battle-text">A wild enemy appears!</div>
         </div>
+      </div> 
 
-        <!-- Log -->
-        <div class="hud-log" id="hud-log" aria-live="polite">
-          <div class="log-line dim">Type “start” to generate a character and begin.</div>
-        </div>
-
-        <!-- Input row -->
-        <div class="hud-inputRow">
-          <label class="sr-only" for="hud-input">Command input</label>
-          <input
-            id="hud-input"
-            class="hud-input"
-            type="text"
-            placeholder="Type here… (start, help, stats, travel)"
-            autocomplete="off"
-          />
-          <button class="hud-send" id="hud-send" type="button">Send</button>
-        </div>
-
-        <!-- Choice buttons -->
-        <div class="hud-choices" id="hud-choices" hidden>
-          <button class="choice-btn" id="choice-1" type="button">Choice 1</button>
-          <button class="choice-btn" id="choice-2" type="button">Choice 2</button>
-        </div>
+      <!-- Battle command ROOT (4 buttons) -->
+      <div class="battle-cmd" id="battle-cmd-root">
+        <button class="mini-btn" id="cmd-attack" type="button">Attack</button>
+        <button class="mini-btn" id="cmd-abilities" type="button">Abilities</button>
+        <button class="mini-btn" id="cmd-item" type="button">Item</button>
+        <button class="mini-btn ghost" id="cmd-run" type="button">Run</button>
       </div>
+
+      <!-- Battle command SUBMENU (4 buttons + back) -->
+      <div class="battle-cmd hidden" id="battle-cmd-sub">
+        <button class="mini-btn" id="sub-1" type="button">—</button>
+        <button class="mini-btn" id="sub-2" type="button">—</button>
+        <button class="mini-btn" id="sub-3" type="button">—</button>
+        <button class="mini-btn" id="sub-4" type="button">—</button>
+        <button class="mini-btn ghost" id="sub-back" type="button">Back</button>
+      </div>
+
+      <!-- Log -->
+      <div class="hud-log" id="hud-log" aria-live="polite">
+        <div class="log-line dim">Type “start” to generate a character and begin.</div>
+      </div>
+
+      <!-- Input row -->
+      <div class="hud-inputRow">
+        <label class="sr-only" for="hud-input">Command input</label>
+        <input id="hud-input" class="hud-input" type="text"
+              placeholder="Type here… (start, help, stats, travel)"
+              autocomplete="off" />
+        <button class="hud-send" id="hud-send" type="button">Send</button>
+      </div>
+
+      <!-- Choice buttons -->
+      <div class="hud-choices" id="hud-choices" hidden>
+        <button class="choice-btn" id="choice-1" type="button">Choice 1</button>
+        <button class="choice-btn" id="choice-2" type="button">Choice 2</button>
+      </div>
+
+    </div>
+
 
       <!-- RIGHT: Stats / Info -->
       <aside class="hud-side">
@@ -260,14 +258,19 @@
             <div class="stat"><span class="k">AC</span><span class="v" id="s-ac">—</span></div>
             <div class="stat"><span class="k">To Hit</span><span class="v" id="s-tohit">—</span></div>
             <div class="stat"><span class="k">DMG</span><span class="v" id="s-dmg">—</span></div>
+            <div class="stat"><span class="k">MP</span><span class="v" id="s-mp">—</span></div>
+            <div class="stat"><span class="k">SP</span><span class="v" id="s-sp">—</span></div>
+
           </div>
 
           <div class="divider"></div>
 
           <div class="stat-grid">
+            <div class="stat"><span class="k">CHA</span><span class="v" id="s-cha">—</span></div>
+            <div class="stat"><span class="k">CON</span><span class="v" id="s-con">—</span></div>
+            <div class="stat"><span class="k">DEX</span><span class="v" id="s-dex">—</span></div>
             <div class="stat"><span class="k">STR</span><span class="v" id="s-str">—</span></div>
             <div class="stat"><span class="k">INT</span><span class="v" id="s-int">—</span></div>
-            <div class="stat"><span class="k">CHA</span><span class="v" id="s-cha">—</span></div>
             <div class="stat"><span class="k">Status</span><span class="v" id="s-status">—</span></div>
           </div>
         </div>

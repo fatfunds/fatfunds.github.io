@@ -5,6 +5,17 @@
 
 import { AdventureEngine } from "./engine.js";
 import { CombatController } from "./Combat.js";
+import { CLASSES } from "./Character.js";
+import {
+  getMoveById,
+  getMoveSlots,
+  getMovesByKind,
+  MoveKind,
+  DEFAULT_ATTACKS_BY_CLASS,
+  DEFAULT_ABILITIES_BY_CLASS
+} from "./Moves.js";
+
+
 
 const game = new AdventureEngine();
 let combat = null; // CombatController when in battle
@@ -37,37 +48,199 @@ function clamp01(x) {
   return Math.max(0, Math.min(1, x));
 }
 
+function clamp(n, lo, hi) {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+function toNum(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+// ---------- Pool normalization (fixes SP 0/0 when engine drops fields) ----------
+const CLASS_DEFAULTS_BY_NAME = (() => {
+  const map = {};
+  for (const cfg of Object.values(CLASSES)) {
+    map[cfg.class_name] = cfg.combat;
+  }
+  return map;
+})();
+
+function normalizePools(p) {
+  if (!p) return p;
+
+  const combatDefaults = CLASS_DEFAULTS_BY_NAME[p.class] ?? null;
+
+  // If engine forgot to include SP/maxSP entirely, restore from class defaults
+  const spMissing =
+    (p.maxSP == null || !Number.isFinite(Number(p.maxSP))) &&
+    (p.SP == null || !Number.isFinite(Number(p.SP)));
+
+  const mpMissing =
+    (p.maxMP == null || !Number.isFinite(Number(p.maxMP))) &&
+    (p.MP == null || !Number.isFinite(Number(p.MP)));
+
+  if (spMissing) {
+    const d = combatDefaults?.SP ?? 0;
+    p.maxSP = d;
+    p.SP = d;
+  }
+  if (mpMissing) {
+    const d = combatDefaults?.MP ?? 0;
+    p.maxMP = d;
+    p.MP = d;
+  }
+
+  // Coerce + clamp (also handles NaN)
+  p.maxSP = Math.max(0, toNum(p.maxSP, toNum(p.SP, 0)));
+  p.maxMP = Math.max(0, toNum(p.maxMP, toNum(p.MP, 0)));
+
+  p.SP = clamp(toNum(p.SP, p.maxSP), 0, p.maxSP);
+  p.MP = clamp(toNum(p.MP, p.maxMP), 0, p.maxMP);
+
+  return p;
+}
+
+// Map your status keys -> sprite sheet (col,row)
+const STATUS_ICONS = {
+  defending: [2, 0],
+  slowed: [4, 6],
+  regen: [7, 3],
+  weakened: [1, 0],
+  acUp: [3, 0],    // matches your Move key "acUp"
+  acDown: [1, 0],
+  burning: [1, 0],
+  poison: [1, 0],
+  wounded: [1, 4]
+};
+
+const TILE = 32;
+
+const SHEET_COLS = 8;
+const SHEET_ROWS = 8;
+const DEFAULT_STATUS_ICON = [1, 0];
+
 // ---------- HUD render ----------
 function renderPlayer(p) {
   if (!p) {
     setText("s-name", "—");
     setText("s-class", "—");
+
     setText("s-hp", "—");
+    setText("s-mp", "—");
+    setText("s-sp", "—");
+
     setText("s-ac", "—");
     setText("s-tohit", "—");
     setText("s-dmg", "—");
+
+    setText("s-cha", "—");
+    setText("s-con", "—");
+    setText("s-dex", "—");
     setText("s-str", "—");
     setText("s-int", "—");
-    setText("s-cha", "—");
+
     setText("s-status", "—");
     return;
   }
 
+  // NEW: ensure MP/SP exist for UI even if engine dropped them
+  normalizePools(p);
+
   setText("s-name", p.name);
   setText("s-class", p.class);
-  setText("s-hp", String(p.HP));
-  setText("s-ac", String(p.AC));
-  setText("s-tohit", `+${p.to_hit}`);
-  setText("s-dmg", `${p.damage[0]}-${p.damage[1]}`);
-  setText("s-str", String(p.STR));
-  setText("s-int", String(p.INT));
-  setText("s-cha", String(p.CHA));
 
+  // HP
+  const hpCur = Number(p.HP ?? 0);
+  const hpMax = Number(p.maxHP ?? hpCur);
+  setText("s-hp", `${hpCur} / ${hpMax}`);
+
+  // MP
+  const mpCur = Number(p.MP ?? 0);
+  const mpMax = Number(p.maxMP ?? mpCur);
+  setText("s-mp", `${mpCur} / ${mpMax}`);
+
+  // SP
+  const spCur = Number(p.SP ?? 0);
+  const spMax = Number(p.maxSP ?? spCur);
+  setText("s-sp", `${spCur} / ${spMax}`);
+
+  // Combat stats
+  setText("s-ac", String(p.AC ?? "—"));
+  setText("s-tohit", typeof p.to_hit === "number" ? `+${p.to_hit}` : "—");
+  setText("s-dmg", Array.isArray(p.damage) ? `${p.damage[0]}-${p.damage[1]}` : "—");
+
+  // Attributes
+  setText("s-cha", String(p.CHA ?? 0));
+  setText("s-con", String(p.CON ?? 0));
+  setText("s-dex", String(p.DEX ?? 0));
+  setText("s-str", String(p.STR ?? 0));
+  setText("s-int", String(p.INT ?? 0));
+
+  // Status text
   const statusKeys = Object.keys(p.status ?? {});
   setText(
     "s-status",
-    statusKeys.length ? statusKeys.map((k) => `${k}(${p.status[k]})`).join(", ") : "—"
+    statusKeys.length
+      ? statusKeys
+          .map((k) => {
+            const v = p.status[k];
+            if (v && typeof v === "object") {
+              const t = typeof v.turns === "number" ? v.turns : "?";
+              return `${k}(${t})`;
+            }
+            return `${k}(${v})`;
+          })
+          .join(", ")
+      : "—"
   );
+}
+
+function makeStatusIcon(statusKey, turns = null) {
+  const [col, row] = STATUS_ICONS[statusKey] ?? DEFAULT_STATUS_ICON;
+
+  const el = document.createElement("div");
+  el.className = "status-icon";
+  el.title = turns != null ? `${statusKey} (${turns})` : statusKey;
+
+  el.style.backgroundImage = `url("Assets/Icons/effects.png")`;
+  el.style.backgroundRepeat = "no-repeat";
+  el.style.backgroundSize = `${SHEET_COLS * TILE}px ${SHEET_ROWS * TILE}px`; // 256x256
+  el.style.backgroundPosition = `${-col * TILE}px ${-row * TILE}px`;
+
+  if (turns != null) el.dataset.turns = String(turns);
+  return el;
+}
+
+function renderStatusRow(containerId, statusObj) {
+  const wrap = document.getElementById(containerId);
+  if (!wrap) return;
+
+  wrap.innerHTML = "";
+
+  if (!statusObj || typeof statusObj !== "object") return;
+
+  const entries = Object.entries(statusObj);
+
+  for (const [k, v] of entries) {
+    if (v == null || v === false) continue;
+
+    let turns = null;
+
+    if (typeof v === "number") turns = v;
+    else if (typeof v === "object") {
+      turns =
+        (typeof v.turns === "number" ? v.turns : null) ??
+        (typeof v.duration === "number" ? v.duration : null) ??
+        (typeof v.value === "number" ? v.value : null);
+    } else if (v === true) {
+      turns = null; // indefinite
+    }
+
+    if (turns === 0) continue;
+
+    wrap.appendChild(makeStatusIcon(k, turns));
+  }
 }
 
 function renderLocation(area) {
@@ -113,6 +286,9 @@ function renderChoices(choices) {
 function renderEncounterPayload(payload) {
   setText("hud-encounters", String(payload.encounterNumber));
   renderLocation(payload.area);
+
+  // NEW: normalize before render
+  normalizePools(payload.player);
   renderPlayer(payload.player);
 
   addLog(`Encounter #${payload.encounterNumber} — ${payload.area.name}`, true);
@@ -133,9 +309,7 @@ function renderResolutionPayload(payload) {
 
   if (payload.repChange) {
     addLog(
-      `Reputation: ${payload.repChange.faction} ${payload.repChange.delta > 0 ? "+" : ""}${
-        payload.repChange.delta
-      }`,
+      `Reputation: ${payload.repChange.faction} ${payload.repChange.delta > 0 ? "+" : ""}${payload.repChange.delta}`,
       true
     );
   }
@@ -144,6 +318,7 @@ function renderResolutionPayload(payload) {
   }
 
   const state = game.getState();
+  normalizePools(state.player);
   renderPlayer(state.player);
 
   if (payload.triggerCombat && payload.combat) {
@@ -170,7 +345,6 @@ function showBattleUI(show) {
   panel.classList.toggle("hidden", !show);
   panel.setAttribute("aria-hidden", show ? "false" : "true");
 
-  // Optional: dim/lock the HUD input during combat
   if ($("hud-input")) $("hud-input").disabled = show;
   if ($("hud-send")) $("hud-send").disabled = show;
 }
@@ -182,21 +356,13 @@ function setHPBar(fillId, current, max) {
   const pct = max <= 0 ? 0 : clamp01(current / max);
   el.style.width = `${Math.round(pct * 100)}%`;
   el.classList.remove("hp-good", "hp-warn", "hp-bad");
-  if (pct >= 0.60) el.classList.add("hp-good");
-  else if (pct >= 0.30) el.classList.add("hp-warn");
+  if (pct >= 0.6) el.classList.add("hp-good");
+  else if (pct >= 0.3) el.classList.add("hp-warn");
   else el.classList.add("hp-bad");
 }
 
-
 function setBattleText(text) {
   setText("battle-text", text);
-}
-
-function setCombatButtonsEnabled(enabled) {
-  if ($("cmd-attack")) $("cmd-attack").disabled = !enabled;
-  if ($("cmd-skill")) $("cmd-skill").disabled = !enabled;
-  if ($("cmd-item")) $("cmd-item").disabled = !enabled;
-  if ($("cmd-run")) $("cmd-run").disabled = !enabled;
 }
 
 function anyAnimBusy() {
@@ -214,6 +380,104 @@ function showFloatingText(who, text, cls = "") {
 
   wrap.appendChild(el);
   window.setTimeout(() => el.remove(), 900);
+}
+
+// ---------- Battle Menu State (ROOT vs SUBMENU) ----------
+let battleMenu = "root"; // "root" | "attack" | "buff" | "debuff" | "heal" | "abilities"
+
+function showRootMenu() {
+  battleMenu = "root";
+
+  $("battle-cmd-root")?.classList.remove("hidden");
+  $("battle-cmd-sub")?.classList.add("hidden");
+
+  for (let i = 1; i <= 4; i++) {
+    const b = $(`sub-${i}`);
+    if (!b) continue;
+    b.dataset.key = "";
+    b.textContent = "—";
+    b.disabled = true;
+  }
+}
+
+function openSubMenu(kind) {
+  battleMenu = kind;
+
+  $("battle-cmd-root")?.classList.add("hidden");
+  $("battle-cmd-sub")?.classList.remove("hidden");
+
+  fillSubMenu(kind);
+}
+
+function ensureLoadouts(player) {
+  if (!player) return;
+
+  const cls = player.class || "Warrior";
+
+  if (!Array.isArray(player.attacks) || player.attacks.length === 0) {
+    player.attacks = (DEFAULT_ATTACKS_BY_CLASS[cls] ?? ["strike"]).slice();
+  }
+  if (!Array.isArray(player.abilities)) {
+    player.abilities = (DEFAULT_ABILITIES_BY_CLASS[cls] ?? []).slice();
+  }
+}
+
+function fillSubMenu(kind) {
+  const player = combat?.player || game.getState()?.player;
+  if (!player) return;
+
+  ensureLoadouts(player);
+
+  let ids = [];
+  if (kind === "attack") {
+    ids = getMoveSlots(player, "attack").ids;
+  } else if (kind === "abilities") {
+    ids = getMoveSlots(player, "abilities").ids;
+  } else if (kind === "buff") {
+    ids = getMovesByKind(player, MoveKind.Buff);
+  } else if (kind === "debuff") {
+    ids = getMovesByKind(player, MoveKind.Debuff);
+  } else if (kind === "heal") {
+    ids = getMovesByKind(player, MoveKind.Heal);
+  }
+
+  ids = (ids ?? []).slice(0, 4);
+
+  for (let i = 1; i <= 4; i++) {
+    const btn = $(`sub-${i}`);
+    if (!btn) continue;
+
+    const moveId = ids[i - 1] || "";
+    btn.dataset.key = moveId;
+
+    if (!moveId) {
+      btn.textContent = "—";
+      btn.disabled = true;
+      continue;
+    }
+
+    const move = getMoveById(moveId);
+    btn.textContent = move ? move.name : moveId;
+    btn.disabled = false;
+  }
+}
+
+function applyStatusFromState(state) {
+  renderStatusRow("player-status-row", state.player.status);
+  renderStatusRow("enemy-status-row", state.enemy.status);
+}
+
+function setCombatButtonsEnabled(enabled) {
+  if ($("cmd-attack")) $("cmd-attack").disabled = !enabled;
+  if ($("cmd-abilities")) $("cmd-abilities").disabled = !enabled;
+  if ($("cmd-item")) $("cmd-item").disabled = !enabled;
+  if ($("cmd-run")) $("cmd-run").disabled = !enabled;
+
+  for (let i = 1; i <= 4; i++) {
+    const b = $(`sub-${i}`);
+    if (b) b.disabled = !enabled || !b.dataset.key;
+  }
+  if ($("sub-back")) $("sub-back").disabled = !enabled;
 }
 
 // ---------- Sprite config ----------
@@ -248,7 +512,7 @@ const SPRITES = {
   enemy: {
     Goblin: {
       idle: { img: "Assets/goblin-idle.png", w: 160, h: 128, frames: 6, speed: "1s" },
-      attack: { img: "Assets/goblin-atk1.png", w: 160, h: 128, frames: 11, speed: "1s" },
+      attack: { img: "Assets/goblin-atk.png", w: 160, h: 128, frames: 11, speed: "1s" },
       hurt: { img: "Assets/goblin-hurt.png", w: 160, h: 128, frames: 8, speed: "1s" },
       death: { img: "Assets/goblin-death.png", w: 160, h: 128, frames: 10, speed: "1s" },
     },
@@ -324,7 +588,6 @@ function applySheet(el, anim, opts = {}) {
   el.style.setProperty("--w", `${anim.w}px`);
   el.style.setProperty("--h", `${anim.h}px`);
 
-  // expose size to wrapper too (for floating text positioning)
   const wrap = el.closest("#player-wrap, #enemy-wrap");
   if (wrap) {
     wrap.style.setProperty("--w", `${anim.w}px`);
@@ -413,14 +676,16 @@ let combatEnemyType = "Goblin";
 let combatPlayerClass = "Warrior";
 let combatInputLocked = false;
 
-// Feel knobs (tweak these)
-const HIT_FRACTION = 0.55;       // impact moment inside attack anim
-const TURN_BEAT_MS = 300;        // pause after player finishes before enemy starts
-const POST_ENEMY_BEAT_MS = 250;  // pause after enemy finishes before player can act
+const HIT_FRACTION = 0.55;
+const TURN_BEAT_MS = 300;
+const POST_ENEMY_BEAT_MS = 250;
 
 function beginCombatFromResolution(enemyObj) {
   const state = game.getState();
   if (!state.player) return;
+
+  // NEW: make sure story player has pools before entering combat
+  normalizePools(state.player);
 
   setChoicesVisible(false);
 
@@ -438,6 +703,8 @@ function beginCombatFromResolution(enemyObj) {
 
   setHPBar("player-hp", pub.player.HP, combatMax.playerHP);
   setHPBar("enemy-hp", pub.enemy.HP, combatMax.enemyHP);
+  applyBarsFromState(pub);
+  applyStatusFromState(pub);
 
   setSpriteIdle(combatPlayerClass, combatEnemyType);
 
@@ -447,6 +714,7 @@ function beginCombatFromResolution(enemyObj) {
   combatInputLocked = false;
   setCombatButtonsEnabled(pub.turn === "player");
 
+  showRootMenu();
   addLog(`Combat begins: ${pub.enemy.name}`, true);
 }
 
@@ -455,6 +723,7 @@ function endCombatAndReturnToStory(result) {
   combatInputLocked = false;
 
   const s = game.getState();
+  normalizePools(s.player);
   renderPlayer(s.player);
 
   if (result.winner === "fled") {
@@ -495,71 +764,182 @@ function endCombatAndReturnToStory(result) {
 function applyBarsFromState(state) {
   setHPBar("player-hp", state.player.HP, combatMax.playerHP);
   setHPBar("enemy-hp", state.enemy.HP, combatMax.enemyHP);
+  applyStatusFromState(state);
+
+  normalizePools(state.player);
+  renderPlayer(state.player);
 }
 
-// Convert combat log into text (NO hurt anim here — we time impact separately)
+// --------- LOG PRINTING (UPDATED FOR move_effect) ---------
 function printCombatLog(entries) {
   for (const e of entries) {
     if (e.type === "player_attack") {
       setBattleText(`You attack! ${e.hit ? `Hit for ${e.dmg}.` : "Miss!"}`);
       addLog(`You attack: d20=${e.roll} total=${e.total} ${e.hit ? `HIT (${e.dmg})` : "MISS"}`, true);
-    } else if (e.type === "enemy_attack") {
+      continue;
+    }
+
+    if (e.type === "enemy_attack") {
       setBattleText(`${combat.enemy.name} attacks! ${e.hit ? `Hit for ${e.dmg}.` : "Miss!"}`);
       addLog(`Enemy attack: d20=${e.roll} total=${e.total} ${e.hit ? `HIT (${e.dmg})` : "MISS"}`, true);
-    } else if (e.type === "player_defend") {
+      continue;
+    }
+
+    if (e.type === "player_move") {
+      if (e.roll == null) {
+        setBattleText(`${e.name}!`);
+        addLog(`${e.name} (MP ${e.mpLeft} | SP ${e.spLeft})`, true);
+      } else {
+        setBattleText(`${e.name}! ${e.hit ? "Hit!" : "Miss!"}`);
+        addLog(
+          `${e.name}: d20=${e.roll} total=${e.total} ${e.hit ? "HIT" : "MISS"} (MP ${e.mpLeft} | SP ${e.spLeft})`,
+          true
+        );
+      }
+      continue;
+    }
+
+    if (e.type === "enemy_move") {
+      if (e.roll == null) {
+        setBattleText(`${combat.enemy.name} uses ${e.name}!`);
+        addLog(`Enemy uses ${e.name}.`, true);
+      } else {
+        setBattleText(`${combat.enemy.name} uses ${e.name}! ${e.hit ? "Hit!" : "Miss!"}`);
+        addLog(`Enemy ${e.name}: d20=${e.roll} total=${e.total} ${e.hit ? "HIT" : "MISS"}`, true);
+      }
+      continue;
+    }
+
+    if (e.type === "player_move_fail") {
+      setBattleText(e.text);
+      addLog(e.text, true);
+      continue;
+    }
+
+    if (e.type === "player_defend") {
       setBattleText("You defend!");
       addLog(e.text, true);
-    } else if (e.type === "player_spell") {
-      setBattleText(`${e.spell}! ${e.hit ? `Deals ${e.dmg}.` : "Fails!"}`);
-      addLog(`Spell ${e.spell}: ${e.hit ? `HIT (${e.dmg})` : "MISS"} (MP ${e.mpLeft})`, true);
-    } else if (e.type === "player_item") {
+      continue;
+    }
+
+    if (e.type === "player_item") {
       setBattleText(`You use a Potion (+${e.heal} HP).`);
       addLog(`Potion heals ${e.heal}.`, true);
-    } else if (e.type === "player_flee") {
+      continue;
+    }
+
+    if (e.type === "player_item_fail") {
+      setBattleText(e.text);
+      addLog(e.text, true);
+      continue;
+    }
+
+    if (e.type === "player_flee") {
       setBattleText(e.success ? "You got away!" : "Can't escape!");
       addLog(`Flee: ${e.total} vs DC ${e.dc} → ${e.success ? "SUCCESS" : "FAIL"}`, true);
-    } else if (e.type === "enemy_taunt") {
-      setBattleText(e.text);
-      addLog(e.text, true);
-    } else if (e.type === "player_spell_fail" || e.type === "player_item_fail") {
-      setBattleText(e.text);
-      addLog(e.text, true);
+      continue;
     }
+
+    if (e.type === "enemy_taunt") {
+      setBattleText(e.text);
+      addLog(e.text, true);
+      continue;
+    }
+
+    if (e.type === "move_effect") {
+      const who = e.by === "enemy" ? combat.enemy.name : "You";
+      const tgt =
+        e.target === "self"
+          ? (e.by === "enemy" ? combat.enemy.name : "yourself")
+          : (e.by === "enemy" ? "you" : combat.enemy.name);
+
+      if (e.effect === "damage") {
+        setBattleText(`${who} uses ${e.name}!`);
+        addLog(`${who} hits ${tgt} for ${e.amount}.`, true);
+      } else if (e.effect === "heal") {
+        setBattleText(`${who} casts ${e.name}!`);
+        addLog(`${who} heals ${tgt} for ${e.amount}.`, true);
+      } else if (e.effect === "status") {
+        setBattleText(`${who} uses ${e.name}.`);
+        addLog(`${who} applies ${e.key} to ${tgt} (${e.turns}t).`, true);
+      } else {
+        addLog(`[effect] ${JSON.stringify(e)}`, true);
+      }
+      continue;
+    }
+
+    if (e.type === "status_tick") {
+      const who = e.who === "enemy" ? combat.enemy.name : "You";
+      if (e.kind === "heal") addLog(`${who} gains ${e.amount} HP from ${e.key}.`, true);
+      else addLog(`${who} takes ${e.amount} damage from ${e.key}.`, true);
+      continue;
+    }
+
+    if (e.type === "status_end") {
+      const who = e.who === "enemy" ? combat.enemy.name : "You";
+      addLog(`${who}'s ${e.key} wore off.`, true);
+      continue;
+    }
+
+    if (e.type === "combat_end") {
+      addLog(`Combat ended: ${e.winner}`, true);
+      continue;
+    }
+
+    addLog(`[unhandled log] ${JSON.stringify(e)}`, true);
   }
 }
 
 function schedulePlayerImpact(entries, impactMs, impactState) {
-  const p = entries.find((x) => x.type === "player_attack" || x.type === "player_spell");
-  if (!p) return;
-
   window.setTimeout(() => {
     if (!combat) return;
 
-    // update HP bars exactly at impact moment
     applyBarsFromState(impactState);
 
-    if (p.hit) playSpriteAnim("enemy", "hurt", combatPlayerClass, combatEnemyType, 0);
-    else showFloatingText("enemy", "MISS", "miss");
+    const attempted =
+      entries.find((x) => x.type === "player_attack") ||
+      entries.find((x) => x.type === "player_move" && x.roll != null);
+
+    const dealtDamage = entries.some(
+      (x) => x.type === "move_effect" && x.by === "player" && x.effect === "damage" && x.amount > 0
+    );
+
+    const basicHit = entries.some((x) => x.type === "player_attack" && x.hit);
+    const moveHit = entries.some((x) => x.type === "player_move" && x.roll != null && x.hit);
+
+    if (basicHit || moveHit || dealtDamage) {
+      playSpriteAnim("enemy", "hurt", combatPlayerClass, combatEnemyType, 0);
+    } else if (attempted) {
+      showFloatingText("enemy", "MISS", "miss");
+    }
   }, impactMs);
 }
 
 function scheduleEnemyImpact(entries, impactMs, impactState) {
-  const e = entries.find((x) => x.type === "enemy_attack");
-  if (!e) return;
-
   window.setTimeout(() => {
     if (!combat) return;
 
-    // update HP bars exactly at impact moment
     applyBarsFromState(impactState);
 
-    if (e.hit) playSpriteAnim("player", "hurt", combatPlayerClass, combatEnemyType, 0);
-    else showFloatingText("player", "MISS", "miss");
+    const attempted =
+      entries.find((x) => x.type === "enemy_attack") ||
+      entries.find((x) => x.type === "enemy_move" && x.roll != null);
+
+    const dealtDamage = entries.some(
+      (x) => x.type === "move_effect" && x.by === "enemy" && x.effect === "damage" && x.amount > 0
+    );
+
+    const basicHit = entries.some((x) => x.type === "enemy_attack" && x.hit);
+    const moveHit = entries.some((x) => x.type === "enemy_move" && x.roll != null && x.hit);
+
+    if (basicHit || moveHit || dealtDamage) {
+      playSpriteAnim("player", "hurt", combatPlayerClass, combatEnemyType, 0);
+    } else if (attempted) {
+      showFloatingText("player", "MISS", "miss");
+    }
   }, impactMs);
 }
 
-
-// Combat inputs (phased turn timing)
 function runCombatAction(actionKey, arg = "") {
   if (!combat) return;
   if (combatInputLocked) return;
@@ -572,9 +952,8 @@ function runCombatAction(actionKey, arg = "") {
   combatInputLocked = true;
   setCombatButtonsEnabled(false);
 
-  // Gesture anim choices (until you add defend/item/flee anims)
   const playerAnimName =
-    actionKey === "attack" || actionKey === "spell" ? "attack" :
+    actionKey === "attack" || actionKey === "move" ? "attack" :
     actionKey === "defend" || actionKey === "item" || actionKey === "flee" ? "attack" :
     "idle";
 
@@ -587,81 +966,55 @@ function runCombatAction(actionKey, arg = "") {
     playSpriteAnim("player", playerAnimName, combatPlayerClass, combatEnemyType, 0);
   }
 
-  // --- PLAYER ENGINE STEP (player only) ---
   const playerResult = combat.actPlayer(actionKey, arg);
   const playerEntries = playerResult.log;
 
-  // Log immediately, bars at impact moment
   printCombatLog(playerEntries);
 
-  // Determine if there is an actual "impact" (attack/spell) or just instant (item/defend/flee)
   const playerImpactMs = Math.floor(playerAnimDuration * HIT_FRACTION);
-  const playerHasImpact = playerEntries.some(
-    (x) => x.type === "player_attack" || x.type === "player_spell"
-  );
+  schedulePlayerImpact(playerEntries, playerImpactMs, playerResult.state);
 
-  if (playerHasImpact) {
-    schedulePlayerImpact(playerEntries, playerImpactMs, playerResult.state);
-  } else {
-    // If no attack impact, update bars right after the gesture a bit
-    window.setTimeout(() => {
-      if (!combat) return;
-      applyBarsFromState(playerResult.state);
-    }, Math.min(160, playerAnimDuration));
-  }
-
-  // If player ended combat (killed enemy or fled)
   if (playerResult.ended) {
-    window.setTimeout(
-      () => endCombatAndReturnToStory(playerResult),
-      Math.max(150, playerAnimDuration)
-    );
+    window.setTimeout(() => endCombatAndReturnToStory(playerResult), Math.max(150, playerAnimDuration));
     return;
   }
 
-  // --- ENEMY PHASE (after player anim + beat) ---
   window.setTimeout(() => {
     if (!combat) return;
 
     const enemyResult = combat.actEnemy();
     const enemyEntries = enemyResult.log;
 
-    const didEnemyAttack = enemyEntries.some((x) => x.type === "enemy_attack");
+    const didEnemyBasicAttack = enemyEntries.some((x) => x.type === "enemy_attack");
+    const didEnemyRolledMove = enemyEntries.some((x) => x.type === "enemy_move" && x.roll != null);
+    const didEnemyDamageEffect = enemyEntries.some(
+      (x) => x.type === "move_effect" && x.by === "enemy" && x.effect === "damage"
+    );
     const didEnemyTaunt = enemyEntries.some((x) => x.type === "enemy_taunt");
 
-    if (didEnemyAttack) {
+    if (didEnemyBasicAttack || didEnemyRolledMove || didEnemyDamageEffect) {
       playSpriteAnim("enemy", "attack", combatPlayerClass, combatEnemyType, 0);
     } else if (didEnemyTaunt) {
-      // tiny tell so it doesn't feel frozen
       playSpriteAnim("enemy", "hurt", combatPlayerClass, combatEnemyType, 0, { returnToIdle: true });
+    } else {
+      playSpriteAnim("enemy", "idle", combatPlayerClass, combatEnemyType, 0, { force: true });
     }
 
-    // Log now; bars at impact
     printCombatLog(enemyEntries);
 
-    const enemyAnimDuration = didEnemyAttack
-      ? animMs("enemy", combatPlayerClass, combatEnemyType, "attack")
-      : 450;
+    const enemyAnimDuration =
+      (didEnemyBasicAttack || didEnemyRolledMove || didEnemyDamageEffect)
+        ? animMs("enemy", combatPlayerClass, combatEnemyType, "attack")
+        : 450;
 
     const enemyImpactMs = Math.floor(enemyAnimDuration * HIT_FRACTION);
-    if (didEnemyAttack) {
-      scheduleEnemyImpact(enemyEntries, enemyImpactMs, enemyResult.state);
-    } else {
-      window.setTimeout(() => {
-        if (!combat) return;
-        applyBarsFromState(enemyResult.state);
-      }, 120);
-    }
+    scheduleEnemyImpact(enemyEntries, enemyImpactMs, enemyResult.state);
 
     if (enemyResult.ended) {
-      window.setTimeout(
-        () => endCombatAndReturnToStory(enemyResult),
-        Math.max(150, enemyAnimDuration)
-      );
+      window.setTimeout(() => endCombatAndReturnToStory(enemyResult), Math.max(150, enemyAnimDuration));
       return;
     }
 
-    // Unlock after enemy anim + beat
     window.setTimeout(() => {
       combatInputLocked = false;
       const s = combat?.getPublicState();
@@ -670,7 +1023,6 @@ function runCombatAction(actionKey, arg = "") {
   }, playerAnimDuration + TURN_BEAT_MS);
 }
 
-// Safe default
 setCombatButtonsEnabled(false);
 
 // ---------- Command handling ----------
@@ -681,7 +1033,6 @@ function handleCommand(raw) {
   addLog(`> ${cmd}`, true);
   const lower = cmd.toLowerCase();
 
-  // ✅ ALWAYS allow reset (even during combat)
   if (lower === "reset") {
     game.reset();
     combat = null;
@@ -699,9 +1050,7 @@ function handleCommand(raw) {
     return;
   }
 
-  // ✅ ALWAYS allow start (even during combat)
   if (lower.startsWith("start")) {
-    // If combat was up, close it
     combat = null;
     combatInputLocked = false;
     showBattleUI(false);
@@ -723,29 +1072,28 @@ function handleCommand(raw) {
     return;
   }
 
-  // If in combat, route combat commands (AFTER start/reset)
   if (combat && combat.getPublicState().active) {
     if (lower === "attack") return runCombatAction("attack");
     if (lower === "defend") return runCombatAction("defend");
     if (lower === "run" || lower === "flee") return runCombatAction("flee");
 
-    if (lower.startsWith("spell")) {
+    if (lower.startsWith("move ")) {
       const parts = lower.split(/\s+/);
-      return runCombatAction("spell", parts[1] || "fire");
+      return runCombatAction("move", parts[1] || "");
     }
+
     if (lower.startsWith("item")) {
       const parts = lower.split(/\s+/);
       return runCombatAction("item", parts[1] || "potion");
     }
 
-    addLog("Combat commands: attack, defend, spell fire|ice, item potion, run", true);
+    addLog("Combat commands: move <id>, defend, item potion, run", true);
     return;
   }
 
-  // Story commands
   if (lower === "help") {
     addLog("Commands: start [1-4], stats, areas, travel <roads|chapel|marsh>, reset");
-    addLog("During combat: attack, defend, spell fire|ice, item potion, run");
+    addLog("During combat: move <id>, item potion, run");
     return;
   }
 
@@ -782,7 +1130,6 @@ function handleCommand(raw) {
 
 // ---------- Wire up events ----------
 document.addEventListener("DOMContentLoaded", () => {
-  // Buttons
   $("btn-start")?.addEventListener("click", () => handleCommand("start"));
   $("btn-reset")?.addEventListener("click", () => handleCommand("reset"));
 
@@ -791,7 +1138,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Enter") handleCommand($("hud-input")?.value ?? "");
   });
 
-  // Choice buttons (story)
   $("choice-1")?.addEventListener("click", () => {
     try {
       const payload = game.pickChoice(1);
@@ -810,16 +1156,39 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Battle command buttons
-  $("cmd-attack")?.addEventListener("click", () => runCombatAction("attack"));
-  $("cmd-skill")?.addEventListener("click", () => runCombatAction("spell", "fire"));
-  $("cmd-item")?.addEventListener("click", () => runCombatAction("item", "potion"));
-  $("cmd-run")?.addEventListener("click", () => runCombatAction("flee"));
+  // ROOT combat menu buttons (OPEN menus)
+  $("cmd-attack")?.addEventListener("click", () => openSubMenu("attack"));
+  $("cmd-abilities")?.addEventListener("click", () => openSubMenu("abilities"));
+
+
+  $("cmd-item")?.addEventListener("click", () => {
+    addLog("Inventory HUD coming soon.", true);
+  });
+
+  $("cmd-run")?.addEventListener("click", () => {
+    showRootMenu();
+    runCombatAction("flee");
+  });
+
+  // SUBMENU move buttons
+  for (let i = 1; i <= 4; i++) {
+    $(`sub-${i}`)?.addEventListener("click", () => {
+      const btn = $(`sub-${i}`);
+      const moveId = btn?.dataset.key || "";
+      if (!moveId) return;
+
+      showRootMenu();
+      runCombatAction("move", moveId);
+    });
+  }
+
+  $("sub-back")?.addEventListener("click", () => showRootMenu());
 
   // Initial UI defaults
   renderPlayer(null);
   renderLocation(null);
   setChoicesVisible(false);
   showBattleUI(false);
+  showRootMenu();
   setCombatButtonsEnabled(false);
 });

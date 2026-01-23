@@ -144,9 +144,11 @@ export class AdventureEngine {
       this.world.rep[hostile] = (this.world.rep[hostile] ?? 0) - 1;
       repChange = { faction: hostile, delta: -1 };
 
-      this.player.status = this.player.status ?? {};
-      this.player.status.wounded = (this.player.status.wounded ?? 0) + 1;
-      statusApplied = { key: "wounded", newValue: this.player.status.wounded };
+      const prev = this.player.status.wounded;
+      const prevTurns = (prev && typeof prev === "object") ? (prev.turns ?? 0) : 0;
+      this.player.status.wounded = { turns: Math.max(prevTurns, 3), dmgMult: 0.75 };
+      statusApplied = { key: "wounded", turns: this.player.status.wounded.turns };
+
     }
 
     const resolution = {
@@ -259,22 +261,35 @@ export class AdventureEngine {
     };
   }
 
-  tickStatuses() {
-    const status = this.player.status ?? {};
-    for (const k of Object.keys(status)) {
-      status[k] -= 1;
+tickStatuses() {
+  const status = this.player.status ?? {};
+
+  for (const [k, v] of Object.entries(status)) {
+    // Old format: number
+    if (typeof v === "number") {
+      status[k] = v - 1;
       if (status[k] <= 0) delete status[k];
+      continue;
     }
+
+    // New format: { turns: number, ... }
+    if (v && typeof v === "object" && typeof v.turns === "number") {
+      v.turns -= 1;
+      if (v.turns <= 0) delete status[k];
+      continue;
+    }
+
+    // Anything else: ignore (or delete if you want strictness)
   }
+}
+
 
   rollCheck(character, stat, dc) {
     let roll = d20();
     let mod = character[stat] ?? 0;
 
     const status = character.status ?? {};
-    if ((status.wounded ?? 0) > 0 && stat === "STR") {
-      mod -= 1;
-    }
+
 
     let total = roll + mod;
 

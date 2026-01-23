@@ -14,7 +14,6 @@ html, body {
   --spriteScale: 1.5; /* tweak: 1.25 / 1.4 / 1.5 */
 }
 
-
 .wrap {
   width: min(var(--wrap), 100% - 2rem);
   margin-inline: auto;
@@ -331,6 +330,8 @@ section p {
 
 .hud-send:hover{ background: rgba(255,255,255,0.18); }
 
+.hidden { display: none !important; }
+
 .hud-choices{
   display:grid;
   grid-template-columns: 1fr 1fr;
@@ -433,21 +434,28 @@ section p {
   padding: 14px;
   border-bottom: 1px solid rgba(255,255,255,0.10);
   background: rgba(0,0,0,0.18);
+  display: grid;
+  gap: 14px;
+  margin-bottom: 14px;
+  position: relative;
+  z-index: 1;
 }
 
 .battle-panel .battle-cmd{
-  margin-top: 12px;
+  margin-top: 4px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .battle-panel .battle-frame{
   width: 100%;
-  height: 360px;
-  aspect-ratio: auto;
+  height: 520px;
   position: relative;
   border-radius: 18px;
+
+  --spriteScale: 2.1;
+
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0,0,0,.45);
   border: 1px solid rgba(255,255,255,.12);
@@ -459,81 +467,87 @@ section p {
   to{ transform: scale(1); opacity: 1; }
 }
 
+.hud-log,
+.hud-inputRow,
+.hud-input{
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+/* BG is the lowest layer */
 .battle-bg{
   position:absolute;
   inset:0;
+  z-index: 0;
   background:
     radial-gradient(1200px 600px at 50% 20%, rgba(255,255,255,.12), transparent 55%),
     linear-gradient(180deg, rgba(10,10,12,.2), rgba(10,10,12,.65));
 }
 
-.battle-bg::after{
-  content:"";
-  position:absolute;
-  left:-10%;
-  right:-10%;
-  bottom:-20%;
-  height: 60%;
-  background:
-    radial-gradient(closest-side at 50% 35%, rgba(255,255,255,.10), transparent 70%),
-    radial-gradient(closest-side at 30% 55%, rgba(255,255,255,.08), transparent 70%),
-    radial-gradient(closest-side at 70% 55%, rgba(255,255,255,.08), transparent 70%),
-    linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.35));
-  transform: skewY(-2deg);
-}
+/* TURN OFF the big dark “blob” layer that was confusing shadows */
+.battle-bg::after{ display:none; }
 
-/* Layout */
+/* Layout slots */
 .battle-enemy{
   position:absolute;
-  top: 12%;
+  top: 6%;
   right: 9%;
-  width: 42%;
-  height: 48%;
-  padding-top: 62px;
+  width: 60%;
+  height: 64%;
+  padding-top: 72px;
+  z-index: 2; /* above bg */
 }
 .battle-player{
   position:absolute;
-  bottom: 18%;
+  bottom: 20%;
   left: 7%;
-  width: 48%;
-  height: 52%;
-  padding-top: 62px;
+  width: 60%;
+  height: 64%;
+  padding-top: 72px;
+  z-index: 2; /* above bg */
 }
 
-/* Ground shadows */
-.battle-player::after, .battle-enemy::after{
+/* SHADOWS: centered, smaller, behind sprites */
+.battle-player::after,
+.battle-enemy::after{
   content:"";
   position:absolute;
-  bottom: 18px;
-  width: 220px;
-  height: 46px;
+
+  left: 50%;
+  transform: translateX(-50%);
+
+  bottom: 8px;          /* raise/lower shadow here */
+  width: 120px;         /* less wide */
+  height: 18px;         /* flatter */
   border-radius: 999px;
-  background: rgba(0,0,0,.35);
-  filter: blur(2px);
-  z-index: 0;
+
+  background: rgba(0,0,0,.28);
+  filter: blur(8px);
+
+  z-index: 1;           /* behind sprite wraps */
+  pointer-events: none;
 }
-.battle-player::after{ left: 20px; }
-.battle-enemy::after{ right: 20px; }
 
 /* Nameplates */
 .nameplate{
   position: absolute;
-  top: -70px;               
-  left: 0;
-  padding: 8px 10px;
-  border-radius: 10px;
+  top: 12px;
+  left: 12px;
+  width: 210px;
+  max-width: 210px;
+  padding: 12px 14px;
+  border-radius: 12px;
   background: rgba(15,15,18,.55);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255,255,255,.12);
-  width: min(260px, 70%);
-  z-index: 3;
-  opacity: .85;            
-  transition: opacity .2s ease;
+  z-index: 6;
+  opacity: .95;
 }
 
 .battle-enemy .nameplate{
   left: auto;
-  right: -12px;
+  right: 12px;
   text-align: left;
 }
 
@@ -542,6 +556,7 @@ section p {
   letter-spacing: .3px;
   margin-bottom: 6px;
 }
+
 .hpbar{
   height: 6px;
   border-radius: 999px;
@@ -563,11 +578,9 @@ section p {
 .hpfill.hp-warn { background: #ffe066; }  /* 30% - 59% */
 .hpfill.hp-bad  { background: #ff3b3b; }  /* < 30% */
 
-/* Optional: subtle danger glow */
 .hpfill.hp-bad{
   box-shadow: 0 0 10px rgba(255, 70, 70, .35);
 }
-
 
 /* Text box */
 .battle-text{
@@ -586,7 +599,7 @@ section p {
 }
 
 /* =========================================================
-   SPRITE SHEET ANIMATION SYSTEM (FIXED: split flip vs shake)
+   SPRITE SHEET ANIMATION SYSTEM (split flip vs shake)
    ========================================================= */
 
 /* Sprite itself ONLY animates sheet frames */
@@ -603,10 +616,7 @@ section p {
 /* Player anchors bottom-left inside wrapper */
 .sprite-player{ left: 0; }
 
-:root{
-  --spriteScale: 1.35; /* tweak: 1.25 / 1.4 / 1.5 */
-}
-
+/* Flip wrappers (scale ONLY) */
 .player-flip{
   position: absolute;
   left: 0;
@@ -625,12 +635,19 @@ section p {
 }
 
 /* ---- SHAKE WRAPPERS (shake ONLY) ---- */
-#player-wrap,
+#player-wrap{
+  position: absolute;
+  left: 0;
+  bottom: 0;   /* FIX: no negative bottoms */
+  z-index: 3;  /* above the slot shadow */
+}
+
 #enemy-wrap{
   position: absolute;
-  bottom: 0;
-  z-index: 1;
-  left: 0;
+  right: 0;
+  left: auto;
+  bottom: 0;   /* FIX: no negative bottoms */
+  z-index: 3;  /* above the slot shadow */
 }
 
 .sprite.sheet{
@@ -651,16 +668,13 @@ section p {
   to   { background-position: calc(var(--w) * var(--frames) * -1) 0; }
 }
 
-
-
 @keyframes hitShake{
-  0%{ left: 0 }
-  25%{ left: -6px }
-  50%{ left: 6px }
-  75%{ left: -3px }
-  100%{ left: 0 }
+  0%   { transform: translateX(0); }
+  25%  { transform: translateX(-6px); }
+  50%  { transform: translateX(6px); }
+  75%  { transform: translateX(-3px); }
+  100% { transform: translateX(0); }
 }
-
 
 #player-wrap.shake,
 #enemy-wrap.shake{
@@ -680,7 +694,6 @@ section p {
   text-shadow: 0 3px 10px rgba(0,0,0,.75);
 }
 
-
 .floating-text.miss{
   opacity: .9;
   color: #cfcfcf;
@@ -689,7 +702,6 @@ section p {
     missShake .25s ease-in-out,
     floatUp .9s ease-out forwards;
 }
-
 
 @keyframes missShake {
   0%   { transform: translate(-50%, 0) translateX(0); }
@@ -702,6 +714,38 @@ section p {
 .floating-text.dmg{
   color: #ff4d4d;
   font-size: 20px;
+}
+
+.status-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 32px;
+}
+
+.status-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-block;
+  image-rendering: pixelated;
+  position: relative;
+}
+
+.status-icon::after {
+  content: attr(data-turns);
+  position: absolute;
+  right: -4px;
+  bottom: -6px;
+  font-size: 12px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.7);
+  line-height: 16px;
+}
+
+.status-icon:not([data-turns])::after {
+  content: "";
+  display: none;
 }
 
 .floating-text.crit{
@@ -719,15 +763,11 @@ section p {
   100% { transform: translate(-50%, 0) scale(1); }
 }
 
-
-
-
 @keyframes floatUp{
   0%   { transform: translate(-50%, 0); opacity: 0; }
   15%  { opacity: 1; }
   100% { transform: translate(-50%, -26px); opacity: 0; }
 }
-
 
 /* Screen-reader only label */
 .sr-only{
@@ -746,7 +786,7 @@ section p {
 @media (max-width: 1000px){
   .hud-grid{ grid-template-columns: 1fr; }
   .hud-badges{ justify-content:flex-start; }
-  .battle-panel .battle-frame{ height: 320px; }
+  .battle-panel .battle-frame{ height: 480px; }
   .battle-panel .battle-cmd{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
