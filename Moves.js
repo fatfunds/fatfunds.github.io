@@ -2,6 +2,13 @@
 // FILE: Moves.js
 // Central move definitions + loadouts (modular effects)
 // Supports stat scaling via roll.adds: { STR: 1, DEX: 0.5, ... }
+//
+// FIXES:
+// - IDs are now consistent everywhere (object key === move.id)
+// - Fixed Kidney Shot id casing + all references (defaults/pools)
+// - Fixed Shambling Fool default "KidneyShot" typo
+// - Fixed fangs move id mismatch (was key "fang" but id "fangs")
+// - Normalized poison/bleed/burn data field casing to `damage`
 // =========================
 
 export const CostPool = Object.freeze({
@@ -44,10 +51,26 @@ export const MOVES = Object.freeze({
     kind: MoveKind.Attack,
     target: "enemy",
     toHitBonus: 0,
-    cost: { pool: CostPool.SP, amount: 0 },
-    effects: [
-      // 2-6 + STR*0.5
-      { type: EffectType.Damage, roll: { min: 2, max: 6, adds: { STR: 0.5 } } },
+    cost: { pool: CostPool.SP, amount: 1 },
+    effects: [{ type: EffectType.Damage, roll: { min: 2, max: 6, adds: { STR: 0.5 } } }],
+  },
+
+  kidneyshot: {
+    id: "kidneyshot",
+    name: "Kidney Shot",
+    description: "A disorienting blow to the abdomen.",
+    element: Element.Physical,
+    kind: MoveKind.Attack,
+    target: "enemy",
+    toHitBonus: 0,
+    cost: { pool: CostPool.SP, amount: 3 },
+    effects: [{ type: EffectType.Damage, roll: { min: 4, max: 7, adds: { DEX: 1.0 } } }],
+    onHit: [
+      {
+        type: EffectType.ApplyStatus,
+        chance: 0.5, // 50% chance to stun
+        status: { key: "stunned", turns: 1 },
+      },
     ],
   },
 
@@ -59,11 +82,8 @@ export const MOVES = Object.freeze({
     kind: MoveKind.Attack,
     target: "enemy",
     toHitBonus: -2,
-    cost: { pool: CostPool.SP, amount: 1 },
-    effects: [
-      // 5-10 + STR*1.0
-      { type: EffectType.Damage, roll: { min: 5, max: 10, adds: { STR: 1.0 } } },
-    ],
+    cost: { pool: CostPool.SP, amount: 2 },
+    effects: [{ type: EffectType.Damage, roll: { min: 5, max: 10, adds: { STR: 1.0 } } }],
   },
 
   quick: {
@@ -75,9 +95,24 @@ export const MOVES = Object.freeze({
     target: "enemy",
     toHitBonus: +2,
     cost: { pool: CostPool.SP, amount: 1 },
-    effects: [
-      // 4-10 + DEX*1.0
-      { type: EffectType.Damage, roll: { min: 4, max: 10, adds: { DEX: 1.0 } } },
+    effects: [{ type: EffectType.Damage, roll: { min: 4, max: 10, adds: { DEX: 1.0 } } }],
+  },
+
+  fangs: {
+    id: "fangs",
+    name: "Fangs",
+    description: "Poison drips off these large fangs.",
+    element: Element.Physical,
+    kind: MoveKind.Attack,
+    target: "enemy",
+    toHitBonus: +1,
+    cost: { pool: CostPool.SP, amount: 1 },
+    effects: [{ type: EffectType.Damage, roll: { min: 4, max: 8, adds: { DEX: 1.0 } } }],
+    onHit: [
+      {
+        type: EffectType.ApplyStatus,
+        status: { key: "poison", turns: 2, data: { damage: 3 } },
+      },
     ],
   },
 
@@ -88,16 +123,10 @@ export const MOVES = Object.freeze({
     element: Element.Physical,
     kind: MoveKind.Buff,
     target: "self",
-    cost: { pool: CostPool.SP, amount: 0 },
-    effects: [
-      {
-        type: EffectType.ApplyStatus,
-        status: { key: "defending", turns: 1, data: {} },
-      },
-    ],
+    cost: { pool: CostPool.SP, amount: 1 },
+    effects: [{ type: EffectType.ApplyStatus, status: { key: "defending", turns: 1, data: {} } }],
   },
 
-  // NEW (example): applies a DOT that Combat.js can tick via STATUS_DEFS.bleeding
   bleedStrike: {
     id: "bleedStrike",
     name: "Bleed Strike",
@@ -106,11 +135,8 @@ export const MOVES = Object.freeze({
     kind: MoveKind.Attack,
     target: "enemy",
     toHitBonus: 0,
-    cost: { pool: CostPool.SP, amount: 1 },
-    effects: [
-      // 3-7 + STR*0.4
-      { type: EffectType.Damage, roll: { min: 3, max: 7, adds: { STR: 0.4 } } },
-    ],
+    cost: { pool: CostPool.SP, amount: 3 },
+    effects: [{ type: EffectType.Damage, roll: { min: 3, max: 7, adds: { STR: 0.4 } } }],
     onHit: [
       {
         type: EffectType.ApplyStatus,
@@ -130,10 +156,26 @@ export const MOVES = Object.freeze({
     kind: MoveKind.Attack,
     target: "enemy",
     toHitBonus: +1,
-    cost: { pool: CostPool.MP, amount: 1 },
-    effects: [
-      // 5-12 + INT*0.8
-      { type: EffectType.Damage, roll: { min: 5, max: 12, adds: { INT: 0.8 } } },
+    cost: { pool: CostPool.MP, amount: 2 },
+    effects: [{ type: EffectType.Damage, roll: { min: 5, max: 12, adds: { INT: 0.8 } } }],
+  },
+
+  poisonRay: {
+    id: "poisonRay",
+    name: "Poison Ray",
+    description: "A putrid green ray that rots its target.",
+    element: Element.Poison,
+    kind: MoveKind.Attack,
+    target: "enemy",
+    toHitBonus: +1,
+    cost: { pool: CostPool.MP, amount: 3 },
+    effects: [{ type: EffectType.Damage, roll: { min: 4, max: 8, adds: { INT: 0.8 } } }],
+    onHit: [
+      {
+        type: EffectType.ApplyStatus,
+        chance: 0.5,
+        status: { key: "poison", turns: 3, data: { damage: 2 } },
+      },
     ],
   },
 
@@ -145,20 +187,17 @@ export const MOVES = Object.freeze({
     kind: MoveKind.Attack,
     target: "enemy",
     toHitBonus: 0,
-    cost: { pool: CostPool.MP, amount: 1 },
-    effects: [
-      // 3-8 + INT*0.6
-      { type: EffectType.Damage, roll: { min: 3, max: 8, adds: { INT: 0.6 } } },
-    ],
+    cost: { pool: CostPool.MP, amount: 2 },
+    effects: [{ type: EffectType.Damage, roll: { min: 3, max: 8, adds: { INT: 0.6 } } }],
     onHit: [
       {
         type: EffectType.ApplyStatus,
+        chance: 0.5,
         status: { key: "slowed", turns: 2, data: { toHitDelta: -2 } },
       },
     ],
   },
 
-  // NEW (example): fire DOT using same "damage per tick" pattern as poison/bleeding
   ignite: {
     id: "ignite",
     name: "Ignite",
@@ -187,10 +226,7 @@ export const MOVES = Object.freeze({
     kind: MoveKind.Heal,
     target: "self",
     cost: { pool: CostPool.MP, amount: 1 },
-    effects: [
-      // 6-12 + INT*0.6
-      { type: EffectType.Heal, roll: { min: 6, max: 12, adds: { INT: 0.6 } } },
-    ],
+    effects: [{ type: EffectType.Heal, roll: { min: 6, max: 12, adds: { INT: 0.6 } } }],
   },
 
   wound: {
@@ -205,11 +241,7 @@ export const MOVES = Object.freeze({
     effects: [
       {
         type: EffectType.ApplyStatus,
-        status: {
-          key: "wounded",
-          turns: 3,
-          data: { pct: 0.25 }, // 25% less outgoing damage
-        },
+        status: { key: "wounded", turns: 3, data: { pct: 0.25 } }, // 25% less outgoing damage
       },
     ],
   },
@@ -245,12 +277,7 @@ export const MOVES = Object.freeze({
     kind: MoveKind.Buff,
     target: "self",
     cost: { pool: CostPool.SP, amount: 1 },
-    effects: [
-      {
-        type: EffectType.ApplyStatus,
-        status: { key: "acUp", turns: 2, data: { acDelta: +2 } },
-      },
-    ],
+    effects: [{ type: EffectType.ApplyStatus, status: { key: "acUp", turns: 2, data: { acDelta: +2 } } }],
   },
 });
 
@@ -261,12 +288,11 @@ export function getMoveById(id) {
 // -------------------------------------------
 // LOADOUT DEFAULTS
 // -------------------------------------------
-
 export const DEFAULT_ATTACKS_BY_CLASS = Object.freeze({
-  Warrior: ["strike", "heavy", "quick", "guard", "bleedStrike"],
+  Warrior: ["strike", "heavy", "quick", "guard", "bleedStrike", "kidneyshot"],
   Cleric: ["strike", "guard", "heal", "firebolt"],
   Wizard: ["strike", "firebolt", "iceShard", "regen", "ignite"],
-  "Shambling Fool": ["strike", "quick", "guard", "heavy"],
+  "Shambling Fool": ["strike", "quick", "guard", "heavy", "kidneyshot"],
 });
 
 export const DEFAULT_ABILITIES_BY_CLASS = Object.freeze({
@@ -276,13 +302,30 @@ export const DEFAULT_ABILITIES_BY_CLASS = Object.freeze({
   "Shambling Fool": [],
 });
 
+// -------------------------------------------
+// BASIC MOVE POOLS (for character creation)
+// Player must pick 4 basics from this pool.
+// -------------------------------------------
+export const BASIC_MOVE_POOL_BY_CLASS = Object.freeze({
+  Warrior: ["strike", "heavy", "quick", "guard", "bleedStrike", "wound", "fortify", "kidneyshot"],
+  Cleric: ["strike", "quick", "guard", "heal", "regen", "fortify", "wound", "firebolt"],
+  Wizard: ["strike", "quick", "firebolt", "iceShard", "ignite", "regen"],
+  "Shambling Fool": ["strike", "heavy", "quick", "guard", "wound", "kidneyshot"],
+});
+
+export function getBasicMovePoolForClass(className) {
+  return (BASIC_MOVE_POOL_BY_CLASS[className] ?? []).slice();
+}
+
+// Optional helper for UI
+export function listMovesByIds(ids) {
+  return (ids ?? []).map((id) => getMoveById(id)).filter(Boolean);
+}
+
 export function getMoveSlots(player, kind, page = 0, pageSize = 4) {
   if (!player) return { ids: [], hasPrev: false, hasNext: false };
 
-  const list =
-    kind === "abilities"
-      ? (player.abilities ?? [])
-      : (player.attacks ?? []);
+  const list = kind === "abilities" ? (player.abilities ?? []) : (player.attacks ?? []);
 
   const start = page * pageSize;
   const ids = list.slice(start, start + pageSize);
@@ -294,8 +337,14 @@ export function getMoveSlots(player, kind, page = 0, pageSize = 4) {
   };
 }
 
-export function getMovesByKind(player, kind) {
-  const list = (player?.attacks ?? []).slice();
+// NOTE: "kind" here is MoveKind.* (attack/buff/heal/debuff/utility)
+// "source" chooses which list to read from: attacks or abilities
+export function getMovesByKind(player, kind, source = "attacks") {
+  const list =
+    source === "abilities"
+      ? (player?.abilities ?? []).slice()
+      : (player?.attacks ?? []).slice();
+
   return list.filter((id) => {
     const m = getMoveById(id);
     return m && m.kind === kind;

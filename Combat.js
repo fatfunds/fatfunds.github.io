@@ -5,6 +5,7 @@
 // + Centralized status behavior via STATUS_DEFS
 // + Element matrix (strong/weak/neutral) via ELEMENT_MATRIX + resist/affinity
 // + Enemy uses moves like player (max 4) with simple AI (buff early, heal <50%, attack often)
+// + ApplyStatus supports chance
 // =========================
 
 import { getMoveById, EffectType } from "./Moves.js";
@@ -372,6 +373,8 @@ export class CombatController {
         maxMP: this.player.maxMP,
         SP: this.player.SP,
         maxSP: this.player.maxSP,
+        attacks: [...(this.player.attacks ?? [])],
+        abilities: [...(this.player.abilities ?? [])],
         status: { ...(this.player.status ?? {}) },
         inventory: [...(this.player.inventory ?? [])],
       },
@@ -661,7 +664,8 @@ export class CombatController {
     const crit = roll === 20;
     const fumble = roll === 1;
 
-    const toHitBonus = Number(move?.toHitBonus ?? 0);
+    // support both toHitBonus + legacy toHitbonus
+    const toHitBonus = Number(move?.toHitBonus ?? move?.toHitbonus ?? 0);
     const casterToHit = Number(caster.to_hit ?? 0);
     const statusToHit = this._getToHitDelta(caster);
 
@@ -726,11 +730,35 @@ export class CombatController {
     }
 
     if (eff.type === EffectType.ApplyStatus) {
+      // chance defaults to 1 (100%)
+      const chance = eff.chance == null ? 1 : Number(eff.chance);
+      const p = Number.isFinite(chance) ? chance : 1;
+      const roll = Math.random();
+
       const st = eff.status;
       const key = String(st?.key ?? "status");
       const turns = st?.turns === Infinity ? Infinity : Number(st?.turns ?? 1);
       const data = st?.data ?? {};
 
+      // fail case (optional logging)
+      if (p <= 0 || roll > p) {
+        entries.push({
+          type: "move_effect",
+          by,
+          effect: "status",
+          name: move.name,
+          moveId: move.id,
+          target: target === caster ? "self" : "enemy",
+          key,
+          turns,
+          chance: p,
+          rolled: roll,
+          applied: false,
+        });
+        return entries;
+      }
+
+      // success case
       this._applyStatus(target, key, turns, data);
 
       entries.push({
@@ -742,6 +770,9 @@ export class CombatController {
         target: target === caster ? "self" : "enemy",
         key,
         turns,
+        chance: p,
+        rolled: roll,
+        applied: true,
       });
 
       return entries;

@@ -68,8 +68,8 @@ export const ENEMY_TEMPLATES = {
     movePool: ["strike", "heavy", "guard", "wound"],
     affinity: Element.Poison,
     resist: {
-      [Element.Poison]: 0.0,
-      [Element.Holy]: 1.5,
+      [Element.Poison]: 1.0,
+      [Element.Holy]: -1.5,
     },
   },
 
@@ -91,7 +91,7 @@ export const ENEMY_TEMPLATES = {
     damage: [2, 8],
     stats: { STR: 1, INT: 2, CHA: 1, CON: 2, DEX: 0 },
     pools: { MP: 5, SP: 2 },
-    movePool: ["heal", "firebolt", "fortify", "guard"], // caster kit
+    movePool: ["heal", "firebolt", "fortify", "poisonRay"], // caster kit
     affinity: Element.Fire,
     resist: {
       [Element.Fire]: 0.5,
@@ -105,7 +105,7 @@ export const ENEMY_TEMPLATES = {
     damage: [1, 7],
     stats: { STR: 1, INT: 0, CHA: 0, CON: 1, DEX: 4 },
     pools: { MP: 0, SP: 4 },
-    movePool: ["quick", "strike", "wound", "guard"],
+    movePool: ["quick", "fangs", "wound", "guard"],
     affinity: Element.Poison,
     resist: {
       [Element.Poison]: 0.5,
@@ -123,7 +123,7 @@ export const ENEMY_TEMPLATES = {
     affinity: Element.Poison,
     resist: {
       [Element.Poison]: 0.5,
-      [Element.Holy]: 1.5,
+      [Element.Holy]: -1.5,
     },
   },
 
@@ -161,6 +161,108 @@ function pickMoves(movePool, maxMoves = 4) {
   }
   return picked;
 }
+
+const BOSS_TITLES = [
+  "the Bog-Crowned",
+  "the Tithe-Collector",
+  "the Drowned Saint",
+  "the Thorn-King",
+  "the Lantern-Eater",
+  "the Hollow Marshal",
+  "the Mire Warden",
+  "the Rotbound",
+  "the Oathbreaker",
+  "the Blooded",
+];
+
+function rollMult(min, max) {
+  const a = Math.round(min * 100);
+  const b = Math.round(max * 100);
+  return randInt(a, b) / 100;
+}
+
+function bossifyMoves(baseMovePool, baseMoves = []) {
+  const pool = Array.isArray(baseMovePool) ? baseMovePool.slice() : [];
+  const picked = [];
+
+  // keep base moves first
+  for (const id of baseMoves) {
+    if (id && !picked.includes(id)) picked.push(id);
+  }
+
+  // then fill from pool
+  while (pool.length && picked.length < 4) {
+    const i = randInt(0, pool.length - 1);
+    const id = pool[i];
+    pool.splice(i, 1);
+    if (id && !picked.includes(id)) picked.push(id);
+  }
+
+  return picked.slice(0, 4);
+}
+
+
+/**
+ * generateBoss(player, difficulty, area, baseTypeOverride?)
+ * - picks a random type from area.enemies (unless override)
+ * - uses generateEnemy() for base identity
+ * - scales stats/pools and gives a random title
+ */
+export function generateBoss(player, difficulty = 0, area = null, baseTypeOverride = null) {
+  // pick type from area if we can
+  let type = baseTypeOverride;
+  if (!type) {
+    if (area?.enemies) type = weightedPick(area.enemies);
+    else {
+      const keys = Object.keys(ENEMY_TEMPLATES);
+      type = keys.length ? choice(keys) : "Goblin";
+    }
+  }
+
+  // start from your normal enemy generation (keeps trait + scaling feel)
+  const base = ENEMY_TEMPLATES[type] ?? ENEMY_TEMPLATES.Goblin;
+
+  // boss baseline bump: treat it as harder than normal for the same run depth
+  const bossDifficulty = difficulty + 3;
+
+  // Generate first
+  const enemy = generateEnemy(player, bossDifficulty, type);
+
+  // Bossify core combat numbers
+  const hpMult = rollMult(1.45, 1.90);
+  const dmgMult = rollMult(1.15, 1.45);
+
+  enemy.HP = Math.round(enemy.HP * hpMult);
+  enemy.maxHP = enemy.HP;
+
+  enemy.AC += randInt(1, 3);
+  enemy.to_hit += randInt(1, 3);
+
+  enemy.damage = [
+    Math.max(1, Math.round(enemy.damage[0] * dmgMult)),
+    Math.max(2, Math.round(enemy.damage[1] * dmgMult)),
+  ];
+
+  // beefier pools so it can actually use kits more
+  enemy.maxMP = Math.max(enemy.maxMP, (base.pools?.MP ?? 0) + randInt(3, 8));
+  enemy.MP = enemy.maxMP;
+
+  enemy.maxSP = Math.max(enemy.maxSP, (base.pools?.SP ?? 0) + randInt(3, 8));
+  enemy.SP = enemy.maxSP;
+
+  // more curated move roll: ensure 4 if possible
+  enemy.moves = bossifyMoves(base.movePool ?? [], enemy.moves ?? []);
+
+  // Cosmetic title
+  const title = choice(BOSS_TITLES);
+  enemy.name = `${type} ${title} (Boss)`;
+
+  enemy.isBoss = true;
+  enemy.bossTitle = title;
+
+  return enemy;
+}
+
 
 /**
  * generateEnemy(player, difficulty=0, enemyType=null, opts?)

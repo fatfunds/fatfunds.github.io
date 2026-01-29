@@ -582,6 +582,57 @@ section p {
   box-shadow: 0 0 10px rgba(255, 70, 70, .35);
 }
 
+/* ================================
+   BATTLE NAMEPLATE: SP/MP/XP rows
+   (for #player-sp-fill etc.)
+   ================================ */
+
+.plate-res{
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.res-row{
+  display: grid;
+  grid-template-columns: 28px 1fr 64px; /* label | bar | value */
+  align-items: center;
+  gap: 8px;
+}
+
+.res-k{
+  opacity: .8;
+  font-size: 0.82rem;
+  letter-spacing: .2px;
+}
+
+.res-v{
+  font-weight: 700;
+  font-size: 0.82rem;
+  text-align: right;
+  opacity: .95;
+}
+
+/* smaller bar than the HUD side panel */
+.res-bar{
+  height: 8px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.res-fill{
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  transition: width .2s ease;
+}
+
+.res-fill.sp { background: #5fd37a; }
+.res-fill.mp { background: #5aa9ff; }
+.res-fill.xp { background: #caa2ff; }
+
+
 /* Text box */
 .battle-text{
   position:absolute;

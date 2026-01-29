@@ -177,6 +177,7 @@
             <div class="nameplate">
               <div class="name" id="enemy-name">Enemy</div>
               <div class="hpbar"><div class="hpfill" id="enemy-hp"></div></div>
+
               <div class="status-row" id="enemy-status-row" aria-label="Enemy status effects"></div>
             </div>
 
@@ -191,7 +192,30 @@
           <div class="battle-player">
             <div class="nameplate">
               <div class="name" id="player-name">Player</div>
+
               <div class="hpbar"><div class="hpfill" id="player-hp"></div></div>
+
+              <!-- NEW: SP/MP/XP inside the battle nameplate -->
+              <div class="plate-res">
+                <div class="res-row">
+                  <span class="res-k">SP</span>
+                  <div class="res-bar"><div class="res-fill sp" id="player-sp-fill"></div></div>
+                  <span class="res-v" id="player-sp-text">—</span>
+                </div>
+
+                <div class="res-row">
+                  <span class="res-k">MP</span>
+                  <div class="res-bar"><div class="res-fill mp" id="player-mp-fill"></div></div>
+                  <span class="res-v" id="player-mp-text">—</span>
+                </div>
+
+                <div class="res-row">
+                  <span class="res-k">XP</span>
+                  <div class="res-bar"><div class="res-fill xp" id="player-xp-fill"></div></div>
+                  <span class="res-v" id="player-xp-text">—</span>
+                </div>
+              </div>
+
               <div class="status-row" id="player-status-row" aria-label="Player status effects"></div>
             </div>
 
@@ -262,6 +286,35 @@
             <div class="stat"><span class="k">SP</span><span class="v" id="s-sp">—</span></div>
 
           </div>
+
+          <!-- SP BAR -->
+          <div class="bar-row">
+            <span class="k">SP</span>
+            <div class="bar">
+              <div class="bar-fill sp" id="sp-fill"></div>
+            </div>
+            <span class="v" id="sp-text">—</span>
+          </div>
+
+          <!-- MP BAR -->
+          <div class="bar-row">
+            <span class="k">MP</span>
+            <div class="bar">
+              <div class="bar-fill mp" id="mp-fill"></div>
+            </div>
+            <span class="v" id="mp-text">—</span>
+          </div>
+
+          <!-- XP BAR -->
+          <div class="bar-row">
+            <span class="k">XP</span>
+            <div class="bar">
+              <div class="bar-fill xp" id="xp-fill"></div>
+            </div>
+            <span class="v" id="xp-text">—</span>
+          </div>
+
+
 
           <div class="divider"></div>
 

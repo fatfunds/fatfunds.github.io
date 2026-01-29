@@ -1,20 +1,25 @@
 // =========================
 // FILE: adventure-ui.js
 // Hooks AdventureEngine -> HUD + Battle UI
+// + Character Creation Wizard (stat points + pick 4 basic moves)
 // =========================
 
 import { AdventureEngine } from "./engine.js";
 import { CombatController } from "./Combat.js";
-import { CLASSES } from "./Character.js";
 import {
-  getMoveById,
-  getMoveSlots,
-  getMovesByKind,
-  MoveKind,
   DEFAULT_ATTACKS_BY_CLASS,
-  DEFAULT_ABILITIES_BY_CLASS
+  DEFAULT_ABILITIES_BY_CLASS,
+  getMoveById,
+  getMovesByKind,
+  getBasicMovePoolForClass,
+  MoveKind
 } from "./Moves.js";
-
+import {
+  CLASSES,
+  makeCharacterDraft,
+  allocateStatPoints,
+  chooseBasicMoves,
+} from "./Character.js";
 
 
 const game = new AdventureEngine();
@@ -71,7 +76,6 @@ function normalizePools(p) {
 
   const combatDefaults = CLASS_DEFAULTS_BY_NAME[p.class] ?? null;
 
-  // If engine forgot to include SP/maxSP entirely, restore from class defaults
   const spMissing =
     (p.maxSP == null || !Number.isFinite(Number(p.maxSP))) &&
     (p.SP == null || !Number.isFinite(Number(p.SP)));
@@ -91,7 +95,6 @@ function normalizePools(p) {
     p.MP = d;
   }
 
-  // Coerce + clamp (also handles NaN)
   p.maxSP = Math.max(0, toNum(p.maxSP, toNum(p.SP, 0)));
   p.maxMP = Math.max(0, toNum(p.maxMP, toNum(p.MP, 0)));
 
@@ -101,21 +104,244 @@ function normalizePools(p) {
   return p;
 }
 
+// ---------- Character Creation Wizard ----------
+const creation = {
+  active: false,
+  classChoice: 1,
+  draft: null,
+  picked: new Set(),
+};
+
+function startCreationFlow(classChoice, nameInput = "") {
+  creation.active = true;
+  creation.classChoice = classChoice;
+  creation.draft = makeCharacterDraft(nameInput, classChoice);
+  creation.picked = new Set();
+
+  clearLog();
+  addLog("=== CHARACTER CREATION ===", true);
+  addLog(`Class: ${creation.draft.class}`, true);
+  addLog(`Unspent stat points: ${creation.draft.unspentStatPoints}`, true);
+  addLog("Commands:", true);
+  addLog("  name <your name>", true);
+  addLog("  add <str|dex|con|int|cha> [n]", true);
+  addLog("  pool  (shows move pool)", true);
+  addLog("  pick <moveId>  (toggle pick; need 4)", true);
+  addLog("  picks (shows current picks)", true);
+  addLog("  auto  (auto-spend points + pick 4)", true);
+  addLog("  done  (start run once points=0 and picks=4)", true);
+  addLog("  cancel", true);
+
+  renderPlayer(creation.draft);
+}
+
+function listPoolForDraft() {
+  const d = creation.draft;
+  if (!d) return;
+
+  const ids = getBasicMovePoolForClass(d.class);
+  addLog(`=== ${d.class} BASIC MOVE POOL ===`, true);
+  for (const id of ids) {
+    const m = getMoveById(id);
+    if (!m) {
+      addLog(`- ${id} (missing in MOVES)`, true);
+      continue;
+    }
+    const cost = m.cost ? `${m.cost.pool} ${m.cost.amount}` : "—";
+    addLog(`- ${m.id}: ${m.name} [${m.kind}] (cost ${cost}) — ${m.description}`, true);
+  }
+}
+
+function showPicks() {
+  const d = creation.draft;
+  if (!d) return;
+
+  const arr = [...creation.picked];
+  addLog(`Picked (${arr.length}/4): ${arr.length ? arr.join(", ") : "—"}`, true);
+  for (const id of arr) {
+    const m = getMoveById(id);
+    if (m) addLog(`  • ${m.name}: ${m.description}`, true);
+  }
+}
+
+function togglePick(moveIdRaw) {
+  const d = creation.draft;
+  if (!d) return;
+
+  const moveId = String(moveIdRaw ?? "").trim();
+  if (!moveId) return;
+
+  const pool = new Set(getBasicMovePoolForClass(d.class));
+  if (!pool.has(moveId)) {
+    addLog(`That move isn't in your class pool: ${moveId}`, true);
+    return;
+  }
+
+  const m = getMoveById(moveId);
+  if (!m) {
+    addLog(`Unknown move id: ${moveId}`, true);
+    return;
+  }
+
+  if (creation.picked.has(moveId)) {
+    creation.picked.delete(moveId);
+    addLog(`Unpicked: ${m.name}`, true);
+    return;
+  }
+
+  if (creation.picked.size >= 4) {
+    addLog("You already picked 4. Unpick one first.", true);
+    return;
+  }
+
+  creation.picked.add(moveId);
+  addLog(`Picked: ${m.name}`, true);
+}
+
+function autoBuildCharacter() {
+  const d = creation.draft;
+  if (!d) return;
+
+  // simple auto-spend: prioritize class flavor
+  const cls = d.class;
+
+  const spendAll = () => {
+    let tries = 50;
+    while ((d.unspentStatPoints ?? 0) > 0 && tries-- > 0) {
+      if (cls === "Warrior") allocateStatPoints(d, { STR: 1 });
+      else if (cls === "Wizard") allocateStatPoints(d, { INT: 1 });
+      else if (cls === "Cleric") allocateStatPoints(d, { CON: 1 });
+      else allocateStatPoints(d, { DEX: 1 });
+
+      // sprinkle some CON so people don't explode
+      if ((d.unspentStatPoints ?? 0) > 0) allocateStatPoints(d, { CON: 1 });
+    }
+  };
+
+  spendAll();
+
+  // auto-pick 4: prefer attacks first, then 1 defensive/support
+  creation.picked.clear();
+  const pool = getBasicMovePoolForClass(d.class)
+    .filter((id) => !!getMoveById(id));
+
+  const attacks = pool.filter((id) => getMoveById(id)?.kind === MoveKind.Attack);
+  const buffs = pool.filter((id) => getMoveById(id)?.kind === MoveKind.Buff);
+  const heals = pool.filter((id) => getMoveById(id)?.kind === MoveKind.Heal);
+  const debuffs = pool.filter((id) => getMoveById(id)?.kind === MoveKind.Debuff);
+
+  const pickOrder = [
+    ...attacks,
+    ...debuffs,
+    ...buffs,
+    ...heals,
+    ...pool,
+  ];
+
+  for (const id of pickOrder) {
+    if (creation.picked.size >= 4) break;
+    creation.picked.add(id);
+  }
+
+  addLog("Auto-build complete.", true);
+  addLog(`Unspent stat points: ${d.unspentStatPoints}`, true);
+  showPicks();
+  renderPlayer(d);
+}
+
+function finalizeAndStartRun() {
+  const d = creation.draft;
+  if (!d) return;
+
+  const points = Number(d.unspentStatPoints ?? 0);
+  if (points !== 0) {
+    addLog(`Spend all stat points first. Remaining: ${points}`, true);
+    return;
+  }
+
+  if (creation.picked.size !== 4) {
+    addLog(`Pick exactly 4 moves. Currently: ${creation.picked.size}/4`, true);
+    return;
+  }
+
+  const pickedIds = [...creation.picked];
+  const ok = chooseBasicMoves(d, pickedIds);
+  if (!ok) {
+    addLog("Move selection failed validation. Check pool + move ids.", true);
+    return;
+  }
+
+  const classChoice = creation.classChoice;
+  const nameInput = d.name;
+
+  addLog("Starting run with your custom character…", true);
+
+  try {
+    let payload = game.startRun({ nameInput, classChoice, areaKey: "roads" });
+
+    if (!payload || !payload.player) {
+      throw new Error("startRun returned no payload/player");
+    }
+
+
+    if (!game.player) throw new Error("game.player missing after startRun()");
+    Object.assign(game.player, d);
+
+    game.player.attacks = pickedIds.slice();
+    game.player.abilities = (d.abilities ?? []).slice();
+    game.player.status = game.player.status ?? {};
+    normalizePools(game.player);
+
+    payload = game.getState();
+    payload.type = "encounter";
+    payload.encounterNumber = game.getState().world.encounters;
+    payload.area = game.getState().current.area;
+    payload.encounter = game.getState().current.encounter;
+    payload.choices = game.getState().current.choices;
+
+    console.log("PICKS:", pickedIds);
+    console.log("game.player.attacks:", game.player.attacks);
+    console.log("state.player.attacks:", game.getState()?.player?.attacks);
+
+    creation.active = false;
+    creation.draft = null;
+    creation.picked.clear();
+
+    const next = game.getState().current.pending === "awaiting_choice"
+      ? {
+          type: "encounter",
+          encounterNumber: game.getState().world.encounters,
+          area: game.getState().current.area,
+          player: game.getState().player,
+          encounter: game.getState().current.encounter,
+          choices: game.getState().current.choices
+        }
+      : game.nextEncounter();
+
+    renderEncounterPayload(next);
+  } catch (err) {
+    console.error("DONE -> startRun failed:", err);
+    addLog(`ERROR starting run: ${err?.message ?? err}`, true);
+    creation.active = true;
+  }
+}
+
+
 // Map your status keys -> sprite sheet (col,row)
 const STATUS_ICONS = {
   defending: [2, 0],
   slowed: [4, 6],
   regen: [7, 3],
   weakened: [1, 0],
-  acUp: [3, 0],    // matches your Move key "acUp"
+  acUp: [3, 0],
   acDown: [1, 0],
-  burning: [1, 0],
-  poison: [1, 0],
-  wounded: [1, 4]
+  burning: [6, 5],
+  poison: [2, 6],
+  wounded: [1, 4],
+  bleeding: [2,7]
 };
 
 const TILE = 32;
-
 const SHEET_COLS = 8;
 const SHEET_ROWS = 8;
 const DEFAULT_STATUS_ICON = [1, 0];
@@ -140,15 +366,28 @@ function renderPlayer(p) {
     setText("s-str", "—");
     setText("s-int", "—");
 
+    // optional fields (safe if missing in HTML)
+    setText("s-level", "—");
+    setText("s-xp", "—");
+    setText("s-points", "—");
+
     setText("s-status", "—");
     return;
   }
 
-  // NEW: ensure MP/SP exist for UI even if engine dropped them
   normalizePools(p);
 
   setText("s-name", p.name);
   setText("s-class", p.class);
+
+  // Optional progression fields
+  if ($("s-level")) setText("s-level", String(p.level ?? 1));
+  if ($("s-xp")) {
+    const xp = Number(p.xp ?? 0);
+    const toNext = Number(p.xpToNext ?? 0);
+    setText("s-xp", toNext > 0 ? `${xp} / ${toNext}` : String(xp));
+  }
+  if ($("s-points")) setText("s-points", String(p.unspentStatPoints ?? 0));
 
   // HP
   const hpCur = Number(p.HP ?? 0);
@@ -164,6 +403,11 @@ function renderPlayer(p) {
   const spCur = Number(p.SP ?? 0);
   const spMax = Number(p.maxSP ?? spCur);
   setText("s-sp", `${spCur} / ${spMax}`);
+
+
+  setSPBar(spCur, spMax);
+  setMPBar(mpCur, mpMax);
+  setXPBar(Number(p.xp ?? 0), Number(p.xpToNext ?? 0));
 
   // Combat stats
   setText("s-ac", String(p.AC ?? "—"));
@@ -205,7 +449,7 @@ function makeStatusIcon(statusKey, turns = null) {
 
   el.style.backgroundImage = `url("Assets/Icons/effects.png")`;
   el.style.backgroundRepeat = "no-repeat";
-  el.style.backgroundSize = `${SHEET_COLS * TILE}px ${SHEET_ROWS * TILE}px`; // 256x256
+  el.style.backgroundSize = `${SHEET_COLS * TILE}px ${SHEET_ROWS * TILE}px`;
   el.style.backgroundPosition = `${-col * TILE}px ${-row * TILE}px`;
 
   if (turns != null) el.dataset.turns = String(turns);
@@ -234,7 +478,7 @@ function renderStatusRow(containerId, statusObj) {
         (typeof v.duration === "number" ? v.duration : null) ??
         (typeof v.value === "number" ? v.value : null);
     } else if (v === true) {
-      turns = null; // indefinite
+      turns = null;
     }
 
     if (turns === 0) continue;
@@ -287,7 +531,6 @@ function renderEncounterPayload(payload) {
   setText("hud-encounters", String(payload.encounterNumber));
   renderLocation(payload.area);
 
-  // NEW: normalize before render
   normalizePools(payload.player);
   renderPlayer(payload.player);
 
@@ -361,6 +604,63 @@ function setHPBar(fillId, current, max) {
   else el.classList.add("hp-bad");
 }
 
+function setBar(fillId, current, max) {
+  const el = $(fillId);
+  if (!el) return;
+
+  const cur = Number(current ?? 0);
+  const m = Number(max ?? 0);
+  const pct = m <= 0 ? 0 : clamp01(cur / m);
+
+  el.style.width = `${Math.round(pct * 100)}%`;
+}
+
+function setPlateBar(fillId, textId, current, max) {
+  const fill = $(fillId);
+  const txt = $(textId);
+
+  const cur = Number(current ?? 0);
+  const m = Number(max ?? 0);
+
+  const pct = m <= 0 ? 0 : clamp01(cur / m);
+  if (fill) fill.style.width = `${Math.round(pct * 100)}%`;
+  if (txt) txt.textContent = m > 0 ? `${cur} / ${m}` : `${cur}`;
+}
+
+
+function setXPBar(current, max) {
+  setBar("xp-fill", current, max);
+
+  // optional label if you add it in HTML
+  if ($("xp-text")) {
+    const cur = Number(current ?? 0);
+    const m = Number(max ?? 0);
+    $("xp-text").textContent = m > 0 ? `${cur} / ${m}` : `${cur}`;
+  }
+}
+
+function setMPBar(current, max) {
+  setBar("mp-fill", current, max);
+
+  if ($("mp-text")) {
+    const cur = Number(current ?? 0);
+    const m = Number(max ?? 0);
+    $("mp-text").textContent = m > 0 ? `${cur} / ${m}` : `${cur}`;
+  }
+}
+
+function setSPBar(current, max) {
+  setBar("sp-fill", current, max);
+
+  if ($("sp-text")) {
+    const cur = Number(current ?? 0);
+    const m = Number(max ?? 0);
+    $("sp-text").textContent = m > 0 ? `${cur} / ${m}` : `${cur}`;
+  }
+}
+
+
+
 function setBattleText(text) {
   setText("battle-text", text);
 }
@@ -410,17 +710,31 @@ function openSubMenu(kind) {
 }
 
 function ensureLoadouts(player) {
-  if (!player) return;
-
   const cls = player.class || "Warrior";
 
-  if (!Array.isArray(player.attacks) || player.attacks.length === 0) {
-    player.attacks = (DEFAULT_ATTACKS_BY_CLASS[cls] ?? ["strike"]).slice();
+  const normList = (arr) =>
+    Array.isArray(arr)
+      ? arr.map((x) => (typeof x === "string" ? x : x?.id)).filter(Boolean)
+      : null;
+
+  const attacks = normList(player.attacks);
+  const abilities = normList(player.abilities);
+
+  if (attacks) {
+    player.attacks = attacks;
+  } else {
+    player.attacks = (DEFAULT_ATTACKS_BY_CLASS[cls] ?? []).slice(0, 4);
   }
-  if (!Array.isArray(player.abilities)) {
+
+  if (abilities) {
+    player.abilities = abilities;
+  } else {
     player.abilities = (DEFAULT_ABILITIES_BY_CLASS[cls] ?? []).slice();
   }
 }
+
+
+
 
 function fillSubMenu(kind) {
   const player = combat?.player || game.getState()?.player;
@@ -430,17 +744,25 @@ function fillSubMenu(kind) {
 
   let ids = [];
   if (kind === "attack") {
-    ids = getMoveSlots(player, "attack").ids;
+    ids = (player.attacks ?? []).slice(0, 4);
   } else if (kind === "abilities") {
-    ids = getMoveSlots(player, "abilities").ids;
+    ids = (player.abilities ?? []).slice(0, 4);
   } else if (kind === "buff") {
-    ids = getMovesByKind(player, MoveKind.Buff);
+    ids = [
+      ...getMovesByKind(player, MoveKind.Buff, "attacks"),
+      ...getMovesByKind(player, MoveKind.Buff, "abilities"),
+    ].slice(0, 4);
   } else if (kind === "debuff") {
-    ids = getMovesByKind(player, MoveKind.Debuff);
+    ids = [
+      ...getMovesByKind(player, MoveKind.Debuff, "attacks"),
+      ...getMovesByKind(player, MoveKind.Debuff, "abilities"),
+    ].slice(0, 4);
   } else if (kind === "heal") {
-    ids = getMovesByKind(player, MoveKind.Heal);
+    ids = [
+      ...getMovesByKind(player, MoveKind.Heal, "attacks"),
+      ...getMovesByKind(player, MoveKind.Heal, "abilities"),
+    ].slice(0, 4);
   }
-
   ids = (ids ?? []).slice(0, 4);
 
   for (let i = 1; i <= 4; i++) {
@@ -559,12 +881,10 @@ function getAnim(who, playerClass, enemyType, animName) {
   }
 }
 
-// Track timeouts so animations don’t fight each other
 const spriteTimers = { player: null, enemy: null };
 const spriteLocked = { player: false, enemy: false };
 const spriteBusy = { player: false, enemy: false };
 
-// --------- JS-controlled sprite sheet animation (no drift) ---------
 function restartAnim(el) {
   el.style.animationName = "none";
   void el.offsetHeight;
@@ -684,7 +1004,6 @@ function beginCombatFromResolution(enemyObj) {
   const state = game.getState();
   if (!state.player) return;
 
-  // NEW: make sure story player has pools before entering combat
   normalizePools(state.player);
 
   setChoicesVisible(false);
@@ -704,7 +1023,8 @@ function beginCombatFromResolution(enemyObj) {
   setHPBar("player-hp", pub.player.HP, combatMax.playerHP);
   setHPBar("enemy-hp", pub.enemy.HP, combatMax.enemyHP);
   applyBarsFromState(pub);
-  applyStatusFromState(pub);
+
+
 
   setSpriteIdle(combatPlayerClass, combatEnemyType);
 
@@ -736,6 +1056,7 @@ function endCombatAndReturnToStory(result) {
   }
 
   if (result.winner === "player") {
+    game.onCombatWin();
     playSpriteAnim("enemy", "death", combatPlayerClass, combatEnemyType, 0, { lock: true, returnToIdle: false });
     setBattleText(`${combat.enemy.name} falls!`);
 
@@ -764,11 +1085,34 @@ function endCombatAndReturnToStory(result) {
 function applyBarsFromState(state) {
   setHPBar("player-hp", state.player.HP, combatMax.playerHP);
   setHPBar("enemy-hp", state.enemy.HP, combatMax.enemyHP);
+  applyBattlePlateBars(state);
   applyStatusFromState(state);
 
   normalizePools(state.player);
   renderPlayer(state.player);
 }
+
+function applyBattlePlateBars(state) {
+  // Player plate (uses player's max pools)
+  normalizePools(state.player);
+  setPlateBar("player-sp-fill", "player-sp-text", state.player.SP, state.player.maxSP);
+  setPlateBar("player-mp-fill", "player-mp-text", state.player.MP, state.player.maxMP);
+
+  // XP is optional in your engine; these ids exist in HTML
+  setPlateBar(
+    "player-xp-fill",
+    "player-xp-text",
+    Number(state.player.xp ?? 0),
+    Number(state.player.xpToNext ?? 0)
+  );
+
+  // Enemy plate (only if you added the enemy plate-res HTML)
+  // If enemy doesn't have pools, this will just show 0 / 0.
+  setPlateBar("enemy-sp-fill", "enemy-sp-text", state.enemy.SP, state.enemy.maxSP);
+  setPlateBar("enemy-mp-fill", "enemy-mp-text", state.enemy.MP, state.enemy.maxMP);
+  setPlateBar("enemy-xp-fill", "enemy-xp-text", Number(state.enemy.xp ?? 0), Number(state.enemy.xpToNext ?? 0));
+}
+
 
 // --------- LOG PRINTING (UPDATED FOR move_effect) ---------
 function printCombatLog(entries) {
@@ -1033,6 +1377,80 @@ function handleCommand(raw) {
   addLog(`> ${cmd}`, true);
   const lower = cmd.toLowerCase();
 
+  // Creation mode commands take priority
+  if (creation.active) {
+    if (lower === "cancel") {
+      creation.active = false;
+      creation.draft = null;
+      creation.picked.clear();
+      addLog("Character creation canceled. Type 'start [1-4]' to begin again.", true);
+      return;
+    }
+
+    if (lower.startsWith("name ")) {
+      const name = cmd.slice(5).trim();
+      if (creation.draft) {
+        creation.draft.name = name || creation.draft.name;
+        addLog(`Name set: ${creation.draft.name}`, true);
+        renderPlayer(creation.draft);
+      }
+      return;
+    }
+
+    if (lower === "pool") {
+      listPoolForDraft();
+      return;
+    }
+
+    if (lower === "picks") {
+      showPicks();
+      return;
+    }
+
+    if (lower.startsWith("pick ")) {
+      const id = cmd.split(/\s+/)[1];
+      togglePick(id);
+      showPicks();
+      return;
+    }
+
+    if (lower === "auto") {
+      autoBuildCharacter();
+      return;
+    }
+
+    if (lower === "done") {
+      finalizeAndStartRun();
+      return;
+    }
+
+    // add <stat> [n]
+    if (lower.startsWith("add ")) {
+      const parts = lower.split(/\s+/);
+      const stat = (parts[1] ?? "").toUpperCase();
+      const n = Math.max(1, Math.floor(Number(parts[2] ?? 1)));
+      const map = { STR: "STR", DEX: "DEX", CON: "CON", INT: "INT", CHA: "CHA" };
+
+      const s = map[stat] ?? null;
+      if (!s) {
+        addLog("Use: add <str|dex|con|int|cha> [n]", true);
+        return;
+      }
+
+      if (!creation.draft) return;
+      for (let i = 0; i < n; i++) {
+        if ((creation.draft.unspentStatPoints ?? 0) <= 0) break;
+        allocateStatPoints(creation.draft, { [s]: 1 });
+      }
+      addLog(`Unspent stat points: ${creation.draft.unspentStatPoints}`, true);
+      renderPlayer(creation.draft);
+      return;
+    }
+
+    addLog("Creation cmds: name <x>, add <stat> [n], pool, pick <id>, picks, auto, done, cancel", true);
+    return;
+  }
+
   if (lower === "reset") {
     game.reset();
     combat = null;
@@ -1050,6 +1468,7 @@ function handleCommand(raw) {
     return;
   }
 
+  // Start now opens character creation instead of instantly running
   if (lower.startsWith("start")) {
     combat = null;
     combatInputLocked = false;
@@ -1057,18 +1476,13 @@ function handleCommand(raw) {
     setCombatButtonsEnabled(false);
     setChoicesVisible(false);
 
-    clearLog();
-
     const parts = lower.split(/\s+/);
     let classChoice = parts[1] ? Number(parts[1]) : NaN;
     if (!Number.isFinite(classChoice) || classChoice < 1 || classChoice > 4) {
       classChoice = Math.floor(Math.random() * 4) + 1;
     }
 
-    addLog(`Starting new run… (Class ${classChoice})`, true);
-
-    const payload = game.startRun({ nameInput: "", classChoice, areaKey: "roads" });
-    renderEncounterPayload(payload);
+    startCreationFlow(classChoice, "");
     return;
   }
 
@@ -1159,7 +1573,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // ROOT combat menu buttons (OPEN menus)
   $("cmd-attack")?.addEventListener("click", () => openSubMenu("attack"));
   $("cmd-abilities")?.addEventListener("click", () => openSubMenu("abilities"));
-
 
   $("cmd-item")?.addEventListener("click", () => {
     addLog("Inventory HUD coming soon.", true);
